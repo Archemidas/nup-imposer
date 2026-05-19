@@ -106,6 +106,13 @@ def _maybe_apply_color_transform(
     return transformed, dest_bytes
 
 
+def _maybe_mirror(canvas: Image.Image, mirror: bool) -> Image.Image:
+    """Horizontally flip the canvas if mirror is True (for sublimation)."""
+    if mirror:
+        return canvas.transpose(Image.FLIP_LEFT_RIGHT)
+    return canvas
+
+
 def export_tiff(
     image: LoadedImage,
     layout: ImpositionLayout,
@@ -133,10 +140,12 @@ def export_tiff(
         black_point_compensation: Whether to enable BPC during transform.
         color_settings: Convenience bundle that overrides the above if set.
     """
+    mirror = False
     if color_settings is not None:
         dest_profile = color_settings.dest_source()
         intent = color_settings.intent
         black_point_compensation = color_settings.black_point_compensation
+        mirror = color_settings.mirror_output
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -145,6 +154,7 @@ def export_tiff(
     canvas, icc_to_embed = _maybe_apply_color_transform(
         canvas, image, dest_profile, intent, black_point_compensation,
     )
+    canvas = _maybe_mirror(canvas, mirror)
 
     save_kwargs: dict = {
         "format": "TIFF",
@@ -175,10 +185,12 @@ def export_pdf(
     The output PDF has a single page sized to the paper dimensions in inches,
     making it open at the intended physical size in Acrobat.
     """
+    mirror = False
     if color_settings is not None:
         dest_profile = color_settings.dest_source()
         intent = color_settings.intent
         black_point_compensation = color_settings.black_point_compensation
+        mirror = color_settings.mirror_output
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -187,6 +199,7 @@ def export_pdf(
     canvas, _icc_to_embed = _maybe_apply_color_transform(
         canvas, image, dest_profile, intent, black_point_compensation,
     )
+    canvas = _maybe_mirror(canvas, mirror)
 
     save_kwargs: dict = {
         "format": "PDF",

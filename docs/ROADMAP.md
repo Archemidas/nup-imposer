@@ -19,19 +19,26 @@
 - Gamut-check flag (overlay polish lands in 0.5.x)
 - CLI: `--dest-profile`, `--intent`, `--no-bpc`
 
-## 0.3.x - target presets
+## 0.3.x - printer presets and sublimation mode  [DONE in 0.3.0]
 
-- Profile registry: printer + paper + ink combo -> ICC path
-- One-click "Print to Epson Artisan 1400 + Premium Glossy"
-- Sublimation mode (auto-mirror, sub-paper profile, correct intent)
-- User-importable profile bundles
+- Bundled preset registry (15 starter presets) covering Epson Artisan 1400/1430,
+  Canon Pro9500 II, Canon Pro-100, Epson SureColor P800/P900, generic laser,
+  commercial CMYK, and sublimation workflows
+- Profile resolution against system-installed ICCs with graceful fallback
+  when filenames don't match
+- User-supplied JSON presets via `~/.nup-imposer/presets/` (override builtins)
+- Sublimation mode: `mirror_output` flag on `ColorSettings` flips the canvas
+  horizontally before save
+- GUI Quick Preset group with workflow filter + auto-apply
+- CLI: `--preset`, `--list-presets`, `--mirror`, `--no-mirror`
 
 ## 0.4.x - multi-ink / RIP-ready output
 
-- 6-color Epson Artisan 1400 support (CMYK + Cl, Ml)
-- 8 to 10-color Canon Pixma Pro9500 Mark II support
+- 6-color Epson Artisan 1400 channel-level output (CMYK + Cl, Ml)
+- 8 to 10-color Canon Pixma Pro9500 Mark II channel-level output
 - Multi-channel TIFF export (DeviceN)
-- Ink coverage (TAC) estimation
+- Ink coverage (TAC) estimation with paper-limit warnings
+- Spot-channel / named color support
 
 ## 0.5.x - production niceties
 

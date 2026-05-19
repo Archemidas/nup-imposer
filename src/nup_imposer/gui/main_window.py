@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ..core import apply_preset_to_settings
 from ..core.color import (
     ColorSettings,
     ProfileInfo,
@@ -35,20 +36,31 @@ from ..core.exporters import export_pdf, export_tiff
 from ..core.image_loader import LoadedImage, load_image
 from ..core.imposition import ImpositionLayout, compute_layout
 from ..core.paper_sizes import PAPER_SIZES, custom_paper_size, get_paper_size
+from ..core.presets import PresetRegistry, get_default_registry
 from ..version import __version__
 from .preview_widget import PreviewWidget
+
+
+WORKFLOW_LABELS = {
+    "all": "All workflows",
+    "inkjet": "Inkjet",
+    "laser": "Laser",
+    "commercial": "Commercial offset",
+    "sublimation": "Sublimation",
+}
 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(f"Nup Imposer v{__version__}")
-        self.resize(1180, 780)
+        self.resize(1220, 840)
 
         self.loaded_image: Optional[LoadedImage] = None
         self.current_layout: Optional[ImpositionLayout] = None
         self.color_settings = ColorSettings()
         self._installed_profiles: List[ProfileInfo] = []
+        self.preset_registry: PresetRegistry = get_default_registry()
 
         self._build_ui()
         self._build_menu()
@@ -67,6 +79,7 @@ class MainWindow(QMainWindow):
         controls_col.addWidget(self._build_input_group())
         controls_col.addWidget(self._build_paper_group())
         controls_col.addWidget(self._build_layout_group())
+        controls_col.addWidget(self._build_preset_group())
         controls_col.addWidget(self._build_color_group())
         controls_col.addWidget(self._build_output_group())
         controls_col.addStretch(1)
@@ -162,6 +175,44 @@ class MainWindow(QMainWindow):
 
         return box
 
+    def _build_preset_group(self) -> QGroupBox:
+        """Quick-preset picker (printer + paper + ink combos)."""
+        box = QGroupBox("Quick Preset")
+        form = QFormLayout(box)
+
+        self.workflow_combo = QComboBox()
+        for key, label in WORKFLOW_LABELS.items():
+            self.workflow_combo.addItem(label, key)
+        self.workflow_combo.currentIndexChanged.connect(self._on_workflow_filter_changed)
+        form.addRow("Workflow:", self.workflow_combo)
+
+        self.preset_combo = QComboBox()
+        self.preset_combo.setMinimumWidth(280)
+        self.preset_combo.currentIndexChanged.connect(self._on_preset_changed)
+        form.addRow("Preset:", self.preset_combo)
+
+        self.preset_notes = QLabel("")
+        self.preset_notes.setWordWrap(True)
+        self.preset_notes.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
+        form.addRow("", self.preset_notes)
+
+        # Populate after construction so signals don't fire on empty state
+        self._populate_preset_combo("all")
+
+        return box
+
+    def _populate_preset_combo(self, workflow: str) -> None:
+        self.preset_combo.blockSignals(True)
+        self.preset_combo.clear()
+        self.preset_combo.addItem("(no preset)", None)
+        presets = (self.preset_registry.all() if workflow == "all"
+                   else self.preset_registry.by_workflow(workflow))
+        for preset in presets:
+            self.preset_combo.addItem(preset.label, preset.id)
+        self.preset_combo.blockSignals(False)
+        # Trigger refresh of notes for the (no preset) default
+        self._on_preset_changed()
+
     def _build_color_group(self) -> QGroupBox:
         box = QGroupBox("Color Management")
         form = QFormLayout(box)
@@ -186,6 +237,14 @@ class MainWindow(QMainWindow):
         self.bpc_check.setChecked(True)
         self.bpc_check.toggled.connect(self._on_bpc_changed)
         form.addRow("", self.bpc_check)
+
+        self.mirror_check = QCheckBox("Mirror output (sublimation)")
+        self.mirror_check.setToolTip(
+            "Flip the imposed sheet horizontally before saving - required for "
+            "heat-press transfer printing."
+        )
+        self.mirror_check.toggled.connect(self._on_mirror_toggled)
+        form.addRow("", self.mirror_check)
 
         self.soft_proof_check = QCheckBox("Soft-proof preview")
         self.soft_proof_check.setToolTip(
@@ -406,6 +465,78 @@ class MainWindow(QMainWindow):
         self.color_settings.gamut_check = checked
         if self.color_settings.soft_proof_enabled:
             self._refresh_preview_color()
+
+    def _on_mirror_toggled(self, checked: bool) -> None:
+        self.color_settings.mirror_output = checked
+
+    # ----------------------------------------------------- preset callbacks
+
+    def _on_workflow_filter_changed(self) -> None:
+        workflow = self.workflow_combo.currentData()
+        self._populate_preset_combo(workflow)
+
+    def _on_preset_changed(self) -> None:
+        preset_id = self.preset_combo.currentData()
+        if preset_id is None:
+            self.preset_notes.setText("")
+            return
+
+        preset = self.preset_registry.find(preset_id)
+        if preset is None:
+            self.preset_notes.setText("")
+            return
+
+        # Apply preset to settings
+        apply_preset_to_settings(preset, self.color_settings)
+
+        # Reflect in the Color Management widgets
+        # Intent combo
+        for i in range(self.intent_combo.count()):
+            if self.intent_combo.itemData(i) == preset.default_intent:
+                self.intent_combo.blockSignals(True)
+                self.intent_combo.setCurrentIndex(i)
+                self.intent_combo.blockSignals(False)
+                break
+        # BPC
+        self.bpc_check.blockSignals(True)
+        self.bpc_check.setChecked(preset.default_bpc)
+        self.bpc_check.blockSignals(False)
+        # Mirror
+        self.mirror_check.blockSignals(True)
+        self.mirror_check.setChecked(preset.mirror_output)
+        self.mirror_check.blockSignals(False)
+        # Destination profile - find if resolved
+        path = self.color_settings.dest_profile_path
+        if path is not None:
+            label = path.name
+            # Add it to the combo if not already present
+            idx = self.dest_profile_combo.findData(str(path))
+            if idx < 0:
+                insert_idx = self.dest_profile_combo.count() - 1
+                self.dest_profile_combo.insertItem(insert_idx, label, str(path))
+                idx = insert_idx
+            self.dest_profile_combo.blockSignals(True)
+            self.dest_profile_combo.setCurrentIndex(idx)
+            self.dest_profile_combo.blockSignals(False)
+
+        # Notes
+        note = (
+            f"<b>{preset.printer}</b>  /  {preset.paper}<br>"
+            f"<i>{preset.ink_set}</i><br>"
+        )
+        if path is not None:
+            note += f"Profile: <code>{path.name}</code><br>"
+        else:
+            note += (
+                "<span style='color:#a60;'>Profile not found on this system - "
+                "use Browse... in Destination to pick the matching ICC, or print "
+                "with these settings via the driver.</span><br>"
+            )
+        if preset.notes:
+            note += f"<br>{preset.notes}"
+        self.preset_notes.setText(note)
+        self.statusBar().showMessage(f"Applied preset: {preset.label}")
+        self._refresh_preview_color()
 
     def _refresh_preview_color(self) -> None:
         if self.current_layout and self.loaded_image:

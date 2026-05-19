@@ -88,6 +88,13 @@ class ColorSettings:
     soft_proof_enabled: bool = False
     proof_intent: RenderingIntent = RenderingIntent.RELATIVE_COLORIMETRIC
     gamut_check: bool = False
+    # 0.3.0: horizontally mirror the imposed canvas before save. Used for
+    # sublimation transfer printing where the image must be flipped so it
+    # appears correctly after heat-press transfer.
+    mirror_output: bool = False
+    # 0.3.0: id of the printer preset that was last applied (if any), purely
+    # informational - used for status display, never functional.
+    preset_id: Optional[str] = None
 
     def has_destination(self) -> bool:
         return self.dest_profile_path is not None or self.dest_profile_bytes is not None

@@ -53,6 +53,26 @@ Format-aware loader. Each input format gets a dedicated path:
 All formats normalize to a `LoadedImage` carrying the PIL image plus original DPI,
 pixel size, color mode, ICC bytes (or None), and source path/format.
 
+### `core/presets.py` + `core/presets_data.py`  [added in 0.3.0]
+
+Printer preset registry. `presets_data.py` holds `BUILTIN_PRESETS`, a list of
+dicts describing each preset (id, label, printer, paper, ink_set, profile
+filename candidates, intent default, BPC default, workflow tag, mirror_output
+flag, notes). `presets.py` defines:
+
+- `PrinterPreset` - frozen dataclass for one entry.
+- `PresetRegistry` - holds bundled + user presets, exposes `find`, `all`,
+  `by_workflow`, `resolve`.
+- `load_user_presets()` - reads JSON files from `~/.nup-imposer/presets/`
+  (Windows: `%USERPROFILE%\\.nup-imposer\\presets\\`).
+- `resolve_profile_path()` - scans system profile dirs for matching filenames.
+- `get_default_registry()` - convenience for app startup.
+
+`core.apply_preset_to_settings(preset, settings)` mutates a `ColorSettings`
+to match the preset's intent / BPC / mirror / destination profile (when
+resolved). Preserves the existing destination if the preset's filename
+candidates do not match anything on disk.
+
 ### `core/color.py`  [added in 0.2.0]
 
 ICC color management wrapper around `PIL.ImageCms` (lcms2). Exposes:
@@ -70,7 +90,8 @@ The module is pure-logic with no Qt dependency; all GUI integration lives in
 
 `_composite(image, layout, dpi)` builds the final canvas in pixels, pastes each
 cell with rotation if needed. Optionally runs through `_maybe_apply_color_transform`
-(0.2.0+) which calls `color.apply_transform` when a destination profile is set.
+(0.2.0+) which calls `color.apply_transform` when a destination profile is set,
+then `_maybe_mirror` (0.3.0+) which flips horizontally for sublimation.
 `export_tiff` saves with LZW compression, DPI tags, and embedded ICC (either
 the original embedded profile or the destination profile after a transform).
 `export_pdf` saves a single-page PDF sized to the paper.

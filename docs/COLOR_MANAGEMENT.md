@@ -110,18 +110,28 @@ python -m nup_imposer photo.jpg -n 4 -p Letter \
 - **Custom profiles** - the Browse... entry in the dropdown takes any
   `.icc` / `.icm` file.
 
-## What's still on the roadmap
+## Target presets (0.3.0 - shipped)
 
-### 0.3.x - target presets
+See [PRESETS.md](PRESETS.md) for the full preset catalog and the schema for
+adding your own.
 
-One-click conversions backed by a registry of common printer + paper + ink combos:
+The bundled list covers:
 
 | From | To | Use case |
 |---|---|---|
-| sRGB | Generic CMYK SWOP | Commercial print |
-| sRGB / AdobeRGB | Epson Artisan 1400 + glossy photo | Home photo |
-| AdobeRGB | Canon Pixma Pro9500 II + matte fine art | Fine art |
-| sRGB | Sublimation transfer paper | Heat-press workflow |
+| Embedded / sRGB | Epson Artisan 1400/1430 + glossy/semi-gloss/fine art | Home photo |
+| Embedded / sRGB | Canon Pixma Pro9500 II + PT / Matte / Luster | Fine art |
+| Embedded / sRGB | Canon Pro-100 + PT | Vivid dye-based photo |
+| Embedded / sRGB | Epson SureColor P800/P900 + Luster / Hot Press | Pro pigment |
+| sRGB | Generic color laser | Office printing |
+| sRGB | Commercial CMYK SWOP v2 | Offset print |
+| sRGB | Sublimation x4 variants | Heat-press transfer (auto-mirrored) |
+
+The GUI's Quick Preset group auto-applies the preset's intent, BPC, mirror
+flag, and (when found on disk) destination profile. Even without the actual
+ICC file installed, the preset's intent/BPC/mirror still gets applied.
+
+## What's still on the roadmap
 
 ### 0.4.x - multi-ink RIP-ready output
 

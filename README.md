@@ -16,6 +16,12 @@ Designed primarily for **Windows**, with both a GUI (PyQt6) and a CLI.
   (Epson, Canon, sublimation, fine art, etc.), choose a rendering intent,
   toggle black-point compensation, and **soft-proof** on screen before you commit.
 - **System profile discovery** scans Windows / macOS / Linux color folders.
+- **Printer presets** (0.3+) - one-click setup for common combos: Epson Artisan
+  1400/1430, Canon Pro9500 Mark II, Canon Pro-100, Epson SureColor P800/P900,
+  generic laser, commercial CMYK, and **sublimation** (auto-mirror for heat-press).
+  Drop your own JSON presets into `~/.nup-imposer/presets/` to override or extend.
+- **Sublimation mode** - horizontally mirror the imposed sheet for heat-press
+  transfer with one checkbox.
 - **Paper presets**: Letter, Legal, Tabloid (11x17), Super B (13x19), A3, A3+, A4, A5, 4x6, 5x7, 8x10, mug-wrap, custom.
 - **Margin + gutter controls** with a live preview.
 - **GUI + CLI** in one app: launch GUI for ad-hoc work, scripted CLI for batch.
@@ -76,6 +82,13 @@ python -m nup_imposer label.pdf -n 12 --paper-custom 13 19 -f both
 python -m nup_imposer photo.jpg -n 4 -p "Super B (13x19)" \
     --dest-profile "C:\\Windows\\System32\\spool\\drivers\\color\\Pro9500_Glossy.icc" \
     --intent perceptual
+
+# One-click sublimation: Canon Pro9500 II + polyester transfer, auto-mirrored
+python -m nup_imposer design.png -n 4 -p "Super B (13x19)" \
+    --preset sublimation_polyester
+
+# Browse all 14 bundled presets
+python -m nup_imposer --list-presets
 ```
 
 See `python -m nup_imposer --help` for all options.
@@ -101,9 +114,9 @@ The full roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md). The highlights:
 
 - **0.2.x** - **DONE** - Active ICC color management: source-to-destination
   transforms, system profile discovery, soft-proofing preview.
-- **0.3.x** - Output-target presets for laser, inkjet, and sublimation workflows.
-- **0.4.x** - Multi-ink awareness: 6-color (e.g. Epson Artisan 1400) and 8/10-color
-  (e.g. Canon Pixma Pro9500 Mark II) profile selection and RIP-ready prep.
+- **0.3.x** - **DONE** - Printer presets, sublimation mode, mirror output.
+- **0.4.x** - Multi-ink RIP-ready output: multi-channel TIFF (DeviceN) for
+  direct ink-channel control, ink coverage / TAC warnings.
 - **0.5.x** - Crop / registration marks, page numbering, batch hot-folder mode.
 
 ## License

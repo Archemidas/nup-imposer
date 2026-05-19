@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nup-imposer"
-version = "0.2.0"
-description = "N-up image imposition for print production with active ICC color management"
+version = "0.3.0"
+description = "N-up image imposition with ICC color management and printer presets"
 readme = "README.md"
 authors = [{name = "Archemidas"}]
 license = {text = "MIT"}

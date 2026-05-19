@@ -44,7 +44,27 @@ Click **Calculate Layout**. The preview shows the paper, the margin guide, the c
 grid, and a thumbnail of your image in each cell. Rotated cells are marked in the
 status bar.
 
-### 4. Color management (optional)
+### 4. Quick Preset (optional shortcut)
+
+The **Quick Preset** group sits just above Color Management. Picking a preset
+auto-fills the right intent, BPC, mirror, and destination profile for that
+printer + paper + ink combo.
+
+- **Workflow** filter narrows the list to Inkjet, Laser, Commercial, or Sublimation.
+- **Preset** dropdown lists the matching combinations. The notes panel below
+  shows the printer model, paper, ink set, the matched profile filename (or a
+  warning if none was found), and any workflow tips.
+
+The bundled list covers Epson Artisan 1400/1430, Canon Pro9500 Mark II,
+Canon Pro-100, Epson SureColor P800/P900, generic laser, commercial CMYK, and
+four sublimation workflows. You can add your own presets by dropping JSON files
+into `%USERPROFILE%\.nup-imposer\presets\` - see [PRESETS.md](PRESETS.md).
+
+If the preset's ICC profile filename isn't on your machine, the preset still
+applies the recommended **intent / BPC / mirror** settings. Use **Browse...**
+in Color Management to point at your actual ICC file.
+
+### 5. Color management (optional)
 
 **Skip this entire section** if you just want a 4-up sheet to send to the
 driver and let Windows handle color. The default settings preserve your
@@ -71,7 +91,7 @@ For active color management:
 When a destination profile is selected, exports apply the transform and embed
 the destination's ICC tag (so the file's pixel data and ICC tag agree).
 
-### 5. Export
+### 6. Export
 
 - **Resolution**: output DPI. 300 is typical for inkjet; 600 for laser/sharp text.
 - **Format**:
@@ -81,6 +101,25 @@ the destination's ICC tag (so the file's pixel data and ICC tag agree).
 - **Embed source ICC profile**: leave on unless you have a reason to strip it.
 
 Click **Export...** and pick a base filename. The extension is added per format.
+
+## Presets and sublimation CLI
+
+```bash
+# Browse all bundled presets
+python -m nup_imposer --list-presets
+
+# One-click sublimation onto polyester (auto-mirrors)
+python -m nup_imposer design.png -n 4 -p "Super B (13x19)" \
+    --preset sublimation_polyester
+
+# Pick a printer preset, but override one setting
+python -m nup_imposer photo.jpg -n 6 -p Letter \
+    --preset canon_pro9500_pt --intent relative
+
+# Force mirror off even when the preset would enable it
+python -m nup_imposer photo.jpg -n 4 -p A4 \
+    --preset sublimation_polyester --no-mirror
+```
 
 ## Color management CLI
 
