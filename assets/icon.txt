@@ -1,3 +1,0 @@
-Place icon.ico here (256x256 multi-resolution recommended).
-PyInstaller and the GitHub Actions workflow will pick it up automatically.
-A placeholder is fine for development - Windows uses a generic icon when none is bundled.
