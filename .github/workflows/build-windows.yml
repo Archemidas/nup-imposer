@@ -11,6 +11,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,20 +25,32 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller pytest
+          pip install pyinstaller>=6.0 pytest
 
       - name: Run tests
         run: pytest tests
 
-      - name: Build EXE
+      - name: Build single-file EXE
         run: pyinstaller nup_imposer.spec --noconfirm
+
+      - name: Verify build output
+        shell: powershell
+        run: |
+          if (!(Test-Path "dist\NupImposer.exe")) {
+            Write-Error "Build failed: dist\NupImposer.exe not found"
+            exit 1
+          }
+          $size = (Get-Item "dist\NupImposer.exe").Length / 1MB
+          Write-Host "NupImposer.exe built successfully — $([math]::Round($size,1)) MB"
 
       - name: Package as zip
         shell: powershell
         run: |
           $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "dev-$(Get-Date -Format yyyyMMddHHmm)" }
           $zipName = "NupImposer-$tag-Windows.zip"
-          Compress-Archive -Path dist\NupImposer\* -DestinationPath $zipName -Force
+          # Zip only the single exe so it lands at the root when extracted
+          Compress-Archive -Path "dist\NupImposer.exe" -DestinationPath $zipName -Force
+          Write-Host "Created $zipName"
           echo "ZIP_NAME=$zipName" >> $env:GITHUB_ENV
 
       - name: Upload build artifact
@@ -46,11 +59,11 @@ jobs:
           name: NupImposer-Windows
           path: ${{ env.ZIP_NAME }}
 
-      - name: Create release
+      - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.ZIP_NAME }}
-          generate_release_notes: true
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

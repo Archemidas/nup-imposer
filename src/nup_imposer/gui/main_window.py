@@ -605,7 +605,6 @@ class MainWindow(QMainWindow):
     def _on_check_tac(self) -> None:
         if not self.loaded_image or self.selected_ink_set is None:
             return
-        from PIL import Image as PILImage
 
         try:
             img = self.loaded_image.pil_image.copy()
