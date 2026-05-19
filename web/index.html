@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nup Imposer Web</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --border: #dde1e7;
+  --text: #1a1d23;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-light: #eff6ff;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --radius: 8px;
+  --radius-sm: 5px;
+  --shadow: 0 1px 4px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
+  --shadow-paper: 0 4px 24px rgba(0,0,0,.15);
+  --sidebar-w: 300px;
+  --font: 'Inter', system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ───────────────────────────────────────── */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+.logo { font-weight: 700; font-size: 1.05rem; letter-spacing: -.3px; color: var(--accent); }
+.logo span { color: var(--text); }
+header .spacer { flex: 1; }
+
+/* ── Layout ───────────────────────────────────────── */
+.layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Sidebar ──────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.section-title {
+  font-size: .68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+/* ── Drop Zone ────────────────────────────────────── */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 22px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .15s;
+  background: var(--bg);
+}
+.drop-zone:hover, .drop-zone.over {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+.drop-zone .dz-icon { font-size: 1.8rem; margin-bottom: 6px; }
+.drop-zone p { font-size: .8rem; color: var(--muted); line-height: 1.4; }
+.drop-zone p strong { color: var(--accent); }
+.drop-zone input[type=file] { display: none; }
+
+.file-info {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--accent-light);
+  border-radius: var(--radius-sm);
+  border: 1px solid #bfdbfe;
+  font-size: .78rem;
+}
+.file-info.visible { display: flex; }
+.file-info .fi-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-info .fi-meta { color: var(--muted); font-size: .72rem; white-space: nowrap; }
+.file-info .fi-change { background: none; border: none; color: var(--accent); font-size: .75rem; cursor: pointer; padding: 0; font-weight: 500; }
+.file-info .fi-change:hover { text-decoration: underline; }
+
+/* ── Form controls ────────────────────────────────── */
+label { font-size: .78rem; font-weight: 500; color: var(--muted); display: block; margin-bottom: 3px; }
+
+select, input[type=number], input[type=text] {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font);
+  font-size: .82rem;
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+  transition: border-color .15s;
+}
+select:focus, input:focus { border-color: var(--accent); }
+
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.gap-v { margin-top: 8px; }
+
+/* ── Segmented control ────────────────────────────── */
+.seg { display: flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.seg button {
+  flex: 1; background: none; border: none; padding: 5px 6px;
+  font-family: var(--font); font-size: .75rem; font-weight: 500; cursor: pointer;
+  color: var(--muted); transition: all .12s;
+}
+.seg button.active { background: var(--accent); color: #fff; }
+.seg button:not(:first-child) { border-left: 1px solid var(--border); }
+
+/* ── Grid picker ──────────────────────────────────── */
+.grid-picker {
+  display: inline-grid;
+  grid-template-columns: repeat(5, 28px);
+  grid-template-rows: repeat(5, 28px);
+  gap: 3px;
+  user-select: none;
+}
+.grid-picker .gp-cell {
+  border-radius: 4px;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  transition: all .1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .6rem;
+  color: transparent;
+}
+.grid-picker .gp-cell.header {
+  font-size: .6rem;
+  color: var(--muted);
+  border: none;
+  background: none;
+  cursor: default;
+  font-weight: 600;
+}
+.grid-picker .gp-cell.hover  { background: #bfdbfe; border-color: #93c5fd; }
+.grid-picker .gp-cell.active { background: var(--accent); border-color: var(--accent); }
+.grid-label { font-size: .78rem; color: var(--muted); margin-top: 6px; }
+.grid-label strong { color: var(--accent); }
+
+/* ── Toggle switch ────────────────────────────────── */
+.toggle-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.toggle-row label { margin: 0; cursor: pointer; }
+.toggle { position: relative; width: 34px; height: 18px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle .track {
+  position: absolute; inset: 0; border-radius: 9px;
+  background: var(--border); transition: .15s;
+  cursor: pointer;
+}
+.toggle .track::after {
+  content: ''; position: absolute; width: 12px; height: 12px; border-radius: 50%;
+  background: #fff; top: 3px; left: 3px; transition: .15s;
+}
+.toggle input:checked + .track { background: var(--accent); }
+.toggle input:checked + .track::after { left: 19px; }
+
+/* ── Buttons ──────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 14px; border-radius: var(--radius-sm); border: none;
+  font-family: var(--font); font-size: .82rem; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-outline { background: none; border: 1px solid var(--border); color: var(--text); }
+.btn-outline:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn-full { width: 100%; }
+
+.action-bar {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Preview pane ─────────────────────────────────── */
+.preview-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: auto;
+  padding: 24px 20px;
+  gap: 16px;
+  background: #e8ecf0;
+}
+
+.preview-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  width: 100%;
+}
+
+.paper {
+  background: #fff;
+  box-shadow: var(--shadow-paper);
+  position: relative;
+  max-width: calc(100% - 32px);
+  max-height: calc(100vh - 130px);
+}
+
+.paper img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.placeholder-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--muted);
+  padding: 60px 40px;
+  text-align: center;
+}
+.placeholder-state .ps-icon { font-size: 3rem; opacity: .4; }
+.placeholder-state p { font-size: .88rem; max-width: 260px; }
+
+/* Info bar below preview */
+.info-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  font-size: .78rem;
+  width: 100%;
+  max-width: 800px;
+  box-shadow: var(--shadow);
+}
+.info-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+}
+.info-chip strong { color: var(--text); }
+.info-chip .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border); }
+
+/* Spinner */
+.spinner {
+  width: 28px; height: 28px; border: 3px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .7s linear infinite; display: none;
+}
+.spinner.active { display: block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--text); color: #fff; border-radius: var(--radius);
+  padding: 10px 18px; font-size: .82rem; font-weight: 500;
+  box-shadow: var(--shadow); z-index: 999; display: none;
+  max-width: 360px; text-align: center;
+}
+.toast.error { background: var(--danger); }
+.toast.show { display: block; animation: fadeUp .25s ease; }
+@keyframes fadeUp { from { opacity:0; transform: translateX(-50%) translateY(8px); } }
+
+/* Units badge */
+.units-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: .7rem; font-weight: 600; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 5px; vertical-align: middle; margin-left: 4px;
+}
+
+/* Scroll tweak */
+.sidebar::-webkit-scrollbar { width: 5px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Nup<span>Imposer</span></div>
+  <div style="font-size:.75rem;color:var(--muted)">Web Edition</div>
+  <div class="spacer"></div>
+  <!-- Units selector in header -->
+  <label style="font-size:.75rem;color:var(--muted);margin:0 4px 0 0">Units</label>
+  <select id="unitsSelect" style="width:auto;padding:4px 8px;font-size:.78rem">
+    <option value="in">inches</option>
+    <option value="mm">mm</option>
+    <option value="cm">cm</option>
+  </select>
+</header>
+
+<div class="layout">
+
+  <!-- ══════════════════ SIDEBAR ══════════════════ -->
+  <aside class="sidebar">
+
+    <!-- Upload -->
+    <div class="section">
+      <div class="section-title">Image</div>
+      <div class="drop-zone" id="dropZone">
+        <div class="dz-icon">🖼️</div>
+        <p><strong>Click to upload</strong> or drag &amp; drop<br>JPG · PNG · TIFF · PSD · PDF</p>
+        <input type="file" id="fileInput" accept="image/*,.pdf,.psd,.tif,.tiff">
+      </div>
+      <div class="file-info" id="fileInfo">
+        <span class="fi-name" id="fiName">—</span>
+        <span class="fi-meta" id="fiMeta">—</span>
+        <button class="fi-change" id="fiChange">Change</button>
+      </div>
+    </div>
+
+    <!-- Canvas -->
+    <div class="section">
+      <div class="section-title">Canvas (Paper)</div>
+      <div class="gap-v">
+        <label>Paper size</label>
+        <select id="paperPreset">
+          <option value="letter">Letter  8.5 × 11 in</option>
+          <option value="legal">Legal  8.5 × 14 in</option>
+          <option value="tabloid">Tabloid  11 × 17 in</option>
+          <option value="a4">A4  210 × 297 mm</option>
+          <option value="a3">A3  297 × 420 mm</option>
+          <option value="a5">A5  148 × 210 mm</option>
+          <option value="4x6">4 × 6 in</option>
+          <option value="5x7">5 × 7 in</option>
+          <option value="8x10">8 × 10 in</option>
+          <option value="custom">Custom…</option>
+        </select>
+      </div>
+      <div class="row2 gap-v" id="canvasCustom" style="display:none">
+        <div>
+          <label>Width <span class="units-badge" id="canvasUnitW">in</span></label>
+          <input type="number" id="canvasW" min="1" step="0.1" value="8.5">
+        </div>
+        <div>
+          <label>Height <span class="units-badge" id="canvasUnitH">in</span></label>
+          <input type="number" id="canvasH" min="1" step="0.1" value="11">
+        </div>
+      </div>
+      <div class="gap-v">
+        <label>Orientation</label>
+        <div class="seg" id="canvasOrient">
+          <button class="active" data-val="portrait">↕ Portrait</button>
+          <button data-val="landscape">↔ Landscape</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image cell size -->
+    <div class="section">
+      <div class="section-title">Image Cell Size</div>
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="autoNup" checked>
+          <span class="track"></span>
+        </label>
+        <label for="autoNup">Auto-fit from image size</label>
+      </div>
+
+      <!-- Auto mode: user specifies image print size -->
+      <div id="autoPanel">
+        <div class="row2">
+          <div>
+            <label>Width <span class="units-badge" id="imgUnitW">in</span></label>
+            <input type="number" id="imgW" min="0.1" step="0.1" value="4">
+          </div>
+          <div>
+            <label>Height <span class="units-badge" id="imgUnitH">in</span></label>
+            <input type="number" id="imgH" min="0.1" step="0.1" value="6">
+          </div>
+        </div>
+        <div class="gap-v">
+          <label>Image orientation</label>
+          <div class="seg" id="imgOrient">
+            <button class="active" data-val="auto">Auto</button>
+            <button data-val="portrait">↕ Port</button>
+            <button data-val="landscape">↔ Land</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grid mode: user picks rows × cols -->
+      <div id="gridPanel" style="display:none">
+        <label style="margin-bottom:6px">Pick grid (hover = preview, click = select)</label>
+        <div class="grid-picker" id="gridPicker"><!-- built by JS --></div>
+        <div class="grid-label" id="gridLabel">Grid: <strong>2 × 2</strong></div>
+      </div>
+
+      <div class="gap-v">
+        <label>Fit mode</label>
+        <div class="seg" id="fitMode">
+          <button class="active" data-val="contain">Letterbox</button>
+          <button data-val="fill">Stretch</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Spacing -->
+    <div class="section">
+      <div class="section-title">Spacing</div>
+      <div class="row2">
+        <div>
+          <label>Margin <span class="units-badge" id="marginUnit">in</span></label>
+          <input type="number" id="margin" min="0" step="0.05" value="0.5">
+        </div>
+        <div>
+          <label>Gutter <span class="units-badge" id="gutterUnit">in</span></label>
+          <input type="number" id="gutter" min="0" step="0.05" value="0.25">
+        </div>
+      </div>
+    </div>
+
+    <!-- Export -->
+    <div class="section">
+      <div class="section-title">Export</div>
+      <label>Output DPI</label>
+      <div class="seg" id="dpiSeg">
+        <button data-val="150">150</button>
+        <button class="active" data-val="300">300</button>
+        <button data-val="600">600</button>
+      </div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="action-bar">
+      <button class="btn btn-outline btn-full" id="previewBtn" disabled>
+        <span>👁</span> Refresh Preview
+      </button>
+      <button class="btn btn-primary btn-full" id="exportBtn" disabled>
+        <span>⬇</span> Download PDF
+      </button>
+    </div>
+
+  </aside>
+
+  <!-- ══════════════════ PREVIEW ══════════════════ -->
+  <main class="preview-pane" id="previewPane">
+    <div class="preview-wrapper" id="previewWrapper">
+      <div class="placeholder-state" id="placeholderState">
+        <div class="ps-icon">📄</div>
+        <p>Upload an image to see your n-up layout preview here.</p>
+      </div>
+      <div class="paper" id="paper" style="display:none">
+        <img id="previewImg" src="" alt="Preview">
+        <div class="spinner" id="spinner" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></div>
+      </div>
+    </div>
+
+    <div class="info-bar" id="infoBar" style="display:none">
+      <div class="info-chip">
+        <div class="dot"></div>
+        <span>Copies: <strong id="iCount">—</strong></span>
+      </div>
+      <div class="info-chip">
+        <div class="dot"></div>
+        <span>Grid: <strong id="iGrid">—</strong></span>
+      </div>
+      <div class="info-chip">
+        <div class="dot"></div>
+        <span>Cell size: <strong id="iCellSize">—</strong></span>
+      </div>
+      <div class="info-chip">
+        <div class="dot"></div>
+        <span>Canvas: <strong id="iCanvas">—</strong></span>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ─── State ─────────────────────────────────────────────────────────────────
+const S = {
+  sessionId: null,
+  filename: null,
+  imgW_px: 0, imgH_px: 0,
+  units: 'in',         // 'in' | 'mm' | 'cm'
+  canvas: { preset: 'letter', w_mm: 215.9, h_mm: 279.4, orient: 'portrait' },
+  image:  { w_mm: 101.6, h_mm: 152.4, orient: 'auto', fit: 'contain' },
+  layout: { mode: 'auto', rows: 2, cols: 2 },
+  spacing: { margin_mm: 12.7, gutter_h_mm: 6.35, gutter_v_mm: 6.35 },
+  dpi: 300,
+  debounce: null,
+};
+
+// Preset paper sizes in mm (portrait)
+const PRESETS = {
+  letter:  [215.9, 279.4],
+  legal:   [215.9, 355.6],
+  tabloid: [279.4, 431.8],
+  a3:      [297.0, 420.0],
+  a4:      [210.0, 297.0],
+  a5:      [148.0, 210.0],
+  '4x6':   [101.6, 152.4],
+  '5x7':   [127.0, 177.8],
+  '8x10':  [203.2, 254.0],
+};
+
+// Unit conversions to/from mm
+const TO_MM   = { in: 25.4, mm: 1, cm: 10 };
+const FROM_MM = { in: 1/25.4, mm: 1, cm: 0.1 };
+const DECIMALS = { in: 3, mm: 1, cm: 2 };
+const STEP    = { in: 0.1, mm: 1, cm: 0.1 };
+
+function toMM(v)   { return v * TO_MM[S.units]; }
+function fromMM(v) { return +(v * FROM_MM[S.units]).toFixed(DECIMALS[S.units]); }
+
+// ─── DOM refs ───────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+const dropZone    = $('dropZone');
+const fileInput   = $('fileInput');
+const fileInfo    = $('fileInfo');
+const fiName      = $('fiName');
+const fiMeta      = $('fiMeta');
+const fiChange    = $('fiChange');
+const paperPreset = $('paperPreset');
+const canvasCustom= $('canvasCustom');
+const canvasWInp  = $('canvasW');
+const canvasHInp  = $('canvasH');
+const canvasOrient= $('canvasOrient');
+const autoNupChk  = $('autoNup');
+const autoPanel   = $('autoPanel');
+const gridPanel   = $('gridPanel');
+const imgWInp     = $('imgW');
+const imgHInp     = $('imgH');
+const imgOrient   = $('imgOrient');
+const gridPicker  = $('gridPicker');
+const gridLabel   = $('gridLabel');
+const fitMode     = $('fitMode');
+const marginInp   = $('margin');
+const gutterInp   = $('gutter');
+const dpiSeg      = $('dpiSeg');
+const previewBtn  = $('previewBtn');
+const exportBtn   = $('exportBtn');
+const paper       = $('paper');
+const previewImg  = $('previewImg');
+const spinner     = $('spinner');
+const placeholderState = $('placeholderState');
+const infoBar     = $('infoBar');
+const unitsSelect = $('unitsSelect');
+
+// ─── Toast ──────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = '') {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = 'toast', 4000);
+}
+
+// ─── Upload ─────────────────────────────────────────────────────────────────
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+fiChange.addEventListener('click', () => fileInput.click());
+
+async function handleFile(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+
+  dropZone.style.display = 'none';
+  fileInfo.classList.add('visible');
+  fiName.textContent = file.name;
+  fiMeta.textContent = 'Uploading…';
+
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
+      throw new Error(err.detail || 'Upload failed');
+    }
+    const data = await res.json();
+    S.sessionId = data.session_id;
+    S.filename  = data.filename;
+    S.imgW_px   = data.width_px;
+    S.imgH_px   = data.height_px;
+
+    const kb = (data.size_bytes / 1024).toFixed(0);
+    fiMeta.textContent = `${data.width_px}×${data.height_px}px · ${kb} KB`;
+
+    previewBtn.disabled = false;
+    exportBtn.disabled  = false;
+    schedulePreview();
+  } catch (err) {
+    showToast(err.message, 'error');
+    dropZone.style.display = '';
+    fileInfo.classList.remove('visible');
+    fiMeta.textContent = '';
+  }
+}
+
+// ─── Unit switching ──────────────────────────────────────────────────────────
+unitsSelect.addEventListener('change', () => {
+  const oldUnits = S.units;
+  S.units = unitsSelect.value;
+  updateUnitBadges();
+  syncInputsFromState(oldUnits);
+});
+
+function updateUnitBadges() {
+  const u = S.units;
+  ['canvasUnitW','canvasUnitH','imgUnitW','imgUnitH','marginUnit','gutterUnit']
+    .forEach(id => { $(id).textContent = u; });
+  // update step
+  [canvasWInp, canvasHInp, imgWInp, imgHInp, marginInp, gutterInp]
+    .forEach(inp => { inp.step = STEP[u]; });
+}
+
+function syncInputsFromState(/* oldUnits */) {
+  // Re-display all values in new units (values stored as mm in S)
+  canvasWInp.value = fromMM(S.canvas.w_mm);
+  canvasHInp.value = fromMM(S.canvas.h_mm);
+  imgWInp.value    = fromMM(S.image.w_mm);
+  imgHInp.value    = fromMM(S.image.h_mm);
+  marginInp.value  = fromMM(S.spacing.margin_mm);
+  gutterInp.value  = fromMM(S.spacing.gutter_h_mm);
+}
+
+// ─── Paper preset ────────────────────────────────────────────────────────────
+paperPreset.addEventListener('change', () => {
+  const v = paperPreset.value;
+  if (v === 'custom') {
+    canvasCustom.style.display = '';
+  } else {
+    canvasCustom.style.display = 'none';
+    const [w, h] = PRESETS[v];
+    S.canvas.w_mm = w; S.canvas.h_mm = h;
+    canvasWInp.value = fromMM(w);
+    canvasHInp.value = fromMM(h);
+  }
+  S.canvas.preset = v;
+  schedulePreview();
+});
+
+canvasWInp.addEventListener('input', () => {
+  S.canvas.w_mm = toMM(parseFloat(canvasWInp.value) || 210);
+  schedulePreview();
+});
+canvasHInp.addEventListener('input', () => {
+  S.canvas.h_mm = toMM(parseFloat(canvasHInp.value) || 297);
+  schedulePreview();
+});
+
+// ─── Segmented controls ───────────────────────────────────────────────────────
+function makeSeg(el, cb) {
+  el.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      el.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      cb(btn.dataset.val);
+    });
+  });
+}
+
+makeSeg(canvasOrient, v => { S.canvas.orient = v; schedulePreview(); });
+makeSeg(imgOrient,    v => { S.image.orient = v;  schedulePreview(); });
+makeSeg(fitMode,      v => { S.image.fit = v;     schedulePreview(); });
+makeSeg(dpiSeg,       v => { S.dpi = parseInt(v); });
+
+// ─── Auto n-up toggle ─────────────────────────────────────────────────────────
+autoNupChk.addEventListener('change', () => {
+  const auto = autoNupChk.checked;
+  S.layout.mode = auto ? 'auto' : 'grid';
+  autoPanel.style.display = auto ? '' : 'none';
+  gridPanel.style.display = auto ? 'none' : '';
+  schedulePreview();
+});
+
+imgWInp.addEventListener('input', () => { S.image.w_mm = toMM(parseFloat(imgWInp.value)||100); schedulePreview(); });
+imgHInp.addEventListener('input', () => { S.image.h_mm = toMM(parseFloat(imgHInp.value)||150); schedulePreview(); });
+marginInp.addEventListener('input', () => { S.spacing.margin_mm = toMM(parseFloat(marginInp.value)||0); S.spacing.gutter_h_mm = S.spacing.gutter_v_mm = toMM(parseFloat(gutterInp.value)||0); schedulePreview(); });
+gutterInp.addEventListener('input', () => { S.spacing.gutter_h_mm = S.spacing.gutter_v_mm = toMM(parseFloat(gutterInp.value)||0); schedulePreview(); });
+
+// ─── Grid picker ──────────────────────────────────────────────────────────────
+(function buildGridPicker() {
+  const MAX = 4;
+  // header row: column labels
+  const corner = document.createElement('div');
+  corner.className = 'gp-cell header';
+  gridPicker.appendChild(corner);
+  for (let c = 1; c <= MAX; c++) {
+    const lbl = document.createElement('div');
+    lbl.className = 'gp-cell header';
+    lbl.textContent = c;
+    gridPicker.appendChild(lbl);
+  }
+  // data rows
+  for (let r = 1; r <= MAX; r++) {
+    const rowLbl = document.createElement('div');
+    rowLbl.className = 'gp-cell header';
+    rowLbl.textContent = r;
+    gridPicker.appendChild(rowLbl);
+    for (let c = 1; c <= MAX; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'gp-cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      cell.addEventListener('mouseenter', () => highlightGrid(r, c));
+      cell.addEventListener('mouseleave', () => highlightGrid(S.layout.rows, S.layout.cols));
+      cell.addEventListener('click', () => {
+        S.layout.rows = r; S.layout.cols = c;
+        updateGridLabel(r, c);
+        schedulePreview();
+      });
+      gridPicker.appendChild(cell);
+    }
+  }
+  highlightGrid(2, 2);
+})();
+
+function highlightGrid(targetR, targetC) {
+  gridPicker.querySelectorAll('.gp-cell:not(.header)').forEach(cell => {
+    const r = +cell.dataset.r, c = +cell.dataset.c;
+    cell.classList.toggle('hover', r <= targetR && c <= targetC && !(r === S.layout.rows && c === S.layout.cols));
+    cell.classList.toggle('active', r === S.layout.rows && c === S.layout.cols);
+  });
+}
+
+function updateGridLabel(r, c) {
+  gridLabel.innerHTML = `Grid: <strong>${r} × ${c}</strong> = ${r*c} copies`;
+  highlightGrid(r, c);
+}
+updateGridLabel(2, 2);
+
+// ─── Preview & export ─────────────────────────────────────────────────────────
+previewBtn.addEventListener('click', () => requestPreview());
+exportBtn.addEventListener('click', exportPDF);
+
+function schedulePreview() {
+  clearTimeout(S.debounce);
+  if (!S.sessionId) return;
+  S.debounce = setTimeout(requestPreview, 350);
+}
+
+function buildPayload(extraDpi) {
+  return {
+    session_id: S.sessionId,
+    canvas: {
+      width_mm:  S.canvas.w_mm,
+      height_mm: S.canvas.h_mm,
+      orientation: S.canvas.orient,
+    },
+    image: {
+      width_mm:  S.image.w_mm,
+      height_mm: S.image.h_mm,
+      orientation: S.image.orient,
+      fit: S.image.fit,
+    },
+    layout: {
+      mode:        S.layout.mode,
+      rows:        S.layout.rows,
+      cols:        S.layout.cols,
+      margin_mm:   S.spacing.margin_mm,
+      gutter_h_mm: S.spacing.gutter_h_mm,
+      gutter_v_mm: S.spacing.gutter_v_mm,
+    },
+    export: { dpi: extraDpi || S.dpi },
+    preview_dpi: 96,
+  };
+}
+
+async function fetchInfo(payload) {
+  const res = await fetch('/api/info', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function requestPreview() {
+  if (!S.sessionId) return;
+  spinner.classList.add('active');
+  paper.style.display = '';
+  placeholderState.style.display = 'none';
+
+  const payload = buildPayload();
+  try {
+    // Fetch preview image and layout info in parallel
+    const [previewRes, info] = await Promise.all([
+      fetch('/api/preview', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload),
+      }),
+      fetchInfo(payload),
+    ]);
+
+    if (!previewRes.ok) {
+      const err = await previewRes.json().catch(() => ({}));
+      throw new Error(err.detail || 'Preview failed');
+    }
+
+    const blob = await previewRes.blob();
+    const url  = URL.createObjectURL(blob);
+    if (previewImg.src) URL.revokeObjectURL(previewImg.src);
+    previewImg.src = url;
+
+    // Scale paper element to match canvas aspect ratio visually
+    const cw = S.canvas.orient === 'landscape' ? Math.max(S.canvas.w_mm, S.canvas.h_mm) : Math.min(S.canvas.w_mm, S.canvas.h_mm);
+    const ch = S.canvas.orient === 'landscape' ? Math.min(S.canvas.w_mm, S.canvas.h_mm) : Math.max(S.canvas.w_mm, S.canvas.h_mm);
+    paper.style.aspectRatio = `${cw} / ${ch}`;
+
+    if (info) updateInfoBar(info);
+
+  } catch (err) {
+    showToast('Preview error: ' + err.message, 'error');
+  } finally {
+    spinner.classList.remove('active');
+  }
+}
+
+function updateInfoBar(info) {
+  infoBar.style.display = '';
+  $('iCount').textContent    = info.count;
+  $('iGrid').textContent     = `${info.rows} × ${info.cols}`;
+  const cw = fromMM(info.cell_w_mm), ch = fromMM(info.cell_h_mm);
+  $('iCellSize').textContent = `${cw} × ${ch} ${S.units}`;
+  const pw = fromMM(info.canvas_w_mm), ph = fromMM(info.canvas_h_mm);
+  $('iCanvas').textContent   = `${pw} × ${ph} ${S.units}`;
+}
+
+async function exportPDF() {
+  if (!S.sessionId) return;
+  exportBtn.disabled = true;
+  exportBtn.textContent = '⏳ Generating PDF…';
+
+  try {
+    const res = await fetch('/api/export', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(buildPayload()),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Export failed');
+    }
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = 'nup-output.pdf';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('PDF downloaded!');
+  } catch (err) {
+    showToast('Export error: ' + err.message, 'error');
+  } finally {
+    exportBtn.disabled  = false;
+    exportBtn.innerHTML = '<span>⬇</span> Download PDF';
+  }
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+updateUnitBadges();
+updateGridLabel(2, 2);
+</script>
+</body>
+</html>
