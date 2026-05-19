@@ -1,0 +1,58 @@
+name: Build NupImposerWeb EXE (Windows)
+
+on:
+  push:
+    tags:
+      - 'web-v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build EXE
+        working-directory: web-client
+        run: pyinstaller NupImposerWeb.spec
+
+      - name: Verify output
+        working-directory: web-client
+        shell: pwsh
+        run: |
+          $exe = "dist\NupImposerWeb.exe"
+          if (!(Test-Path $exe)) { Write-Error "EXE not found at $exe"; exit 1 }
+          $size = (Get-Item $exe).Length / 1MB
+          Write-Host "NupImposerWeb.exe built - $([math]::Round($size,1)) MB"
+
+      - name: Package ZIP
+        working-directory: web-client
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF_NAME -match '^web-v') { $env:GITHUB_REF_NAME } else { "dev" }
+          Compress-Archive -Path dist\NupImposerWeb.exe -DestinationPath "NupImposerWeb-$tag-Windows.zip"
+          Write-Host "Packaged NupImposerWeb-$tag-Windows.zip"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NupImposerWeb-Windows
+          path: web-client/NupImposerWeb-*.zip
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/web-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: web-client/NupImposerWeb-*.zip
+          generate_release_notes: true

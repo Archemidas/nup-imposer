@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nup Imposer Web</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f2f5;--surf:#fff;--border:#dde1e7;--text:#1a1d23;--muted:#6b7280;
+  --accent:#2563eb;--accent-h:#1d4ed8;--accent-lt:#eff6ff;
+  --radius:8px;--rad-sm:5px;--font:'Inter',system-ui,sans-serif;
+  --sidebar:300px;
+  --shadow:0 1px 4px rgba(0,0,0,.07),0 4px 14px rgba(0,0,0,.05);
+  --paper-shadow:0 6px 32px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.1);
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* Header */
+header{background:var(--surf);border-bottom:1px solid var(--border);padding:0 20px;height:52px;display:flex;align-items:center;gap:12px;flex-shrink:0;z-index:10}
+.logo{font-weight:700;font-size:1.05rem;letter-spacing:-.3px;color:var(--accent)}.logo span{color:var(--text)}
+.spacer{flex:1}
+.hdr-ctrl{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted)}
+
+/* Layout */
+.layout{display:flex;flex:1;overflow:hidden}
+
+/* Sidebar */
+.sidebar{width:var(--sidebar);flex-shrink:0;background:var(--surf);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+.sidebar::-webkit-scrollbar{width:4px}.sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+.section{padding:13px 16px;border-bottom:1px solid var(--border)}
+.sec-title{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px}
+
+/* Drop zone */
+.dropzone{border:2px dashed var(--border);border-radius:var(--radius);padding:20px 12px;text-align:center;cursor:pointer;transition:all .15s;background:var(--bg)}
+.dropzone:hover,.dropzone.over{border-color:var(--accent);background:var(--accent-lt)}
+.dropzone .dz-ico{font-size:1.9rem;margin-bottom:6px;display:block}
+.dropzone p{font-size:.78rem;color:var(--muted);line-height:1.5}
+.dropzone p strong{color:var(--accent)}
+.dropzone input{display:none}
+.file-info{display:none;align-items:center;gap:8px;padding:8px 10px;background:var(--accent-lt);border-radius:var(--rad-sm);border:1px solid #bfdbfe;font-size:.77rem}
+.file-info.on{display:flex}
+.fi-name{font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fi-meta{color:var(--muted);font-size:.71rem;white-space:nowrap}
+.fi-change{background:none;border:none;color:var(--accent);font-size:.74rem;cursor:pointer;font-weight:500;padding:0}
+.fi-change:hover{text-decoration:underline}
+
+/* Form */
+label{font-size:.77rem;font-weight:500;color:var(--muted);display:block;margin-bottom:3px}
+select,input[type=number]{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--rad-sm);font-family:var(--font);font-size:.81rem;color:var(--text);background:var(--surf);outline:none;transition:border-color .15s}
+select:focus,input[type=number]:focus{border-color:var(--accent)}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.mt{margin-top:8px}
+.ubadge{font-size:.68rem;font-weight:600;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 4px;vertical-align:middle;margin-left:3px}
+
+/* Segmented */
+.seg{display:flex;border:1px solid var(--border);border-radius:var(--rad-sm);overflow:hidden}
+.seg button{flex:1;background:none;border:none;padding:5px 5px;font-family:var(--font);font-size:.74rem;font-weight:500;cursor:pointer;color:var(--muted);transition:all .12s}
+.seg button.on{background:var(--accent);color:#fff}
+.seg button+button{border-left:1px solid var(--border)}
+
+/* Toggle */
+.tog-row{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.tog-row label{margin:0;cursor:pointer;font-weight:500;color:var(--text)}
+.tog{position:relative;width:34px;height:18px;flex-shrink:0}
+.tog input{opacity:0;width:0;height:0}
+.tog .trk{position:absolute;inset:0;border-radius:9px;background:var(--border);cursor:pointer;transition:.15s}
+.tog .trk::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.15s}
+.tog input:checked+.trk{background:var(--accent)}
+.tog input:checked+.trk::after{left:19px}
+
+/* Grid picker */
+.gp-wrap{display:flex;align-items:flex-start;gap:10px;flex-direction:column}
+.grid-picker{display:inline-grid;grid-template-columns:repeat(5,26px);grid-template-rows:repeat(5,26px);gap:3px;user-select:none}
+.gp-cell{border-radius:4px;border:1.5px solid var(--border);background:var(--bg);cursor:pointer;transition:all .09s;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:transparent}
+.gp-cell.hdr{font-size:.6rem;color:var(--muted);border:none;background:none;cursor:default}
+.gp-cell.hover{background:#bfdbfe;border-color:#93c5fd}
+.gp-cell.sel{background:var(--accent);border-color:var(--accent)}
+.gp-lbl{font-size:.78rem;color:var(--muted)}.gp-lbl strong{color:var(--accent)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:8px 14px;border-radius:var(--rad-sm);border:none;font-family:var(--font);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .14s}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover:not(:disabled){background:var(--accent-h)}
+.btn-outline{background:none;border:1px solid var(--border);color:var(--text)}.btn-outline:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-full{width:100%}
+.action-bar{padding:14px 16px;display:flex;flex-direction:column;gap:8px;margin-top:auto;border-top:1px solid var(--border)}
+
+/* Progress bar */
+.progress-wrap{display:none;flex-direction:column;gap:5px}
+.progress-wrap.on{display:flex}
+.progress-bar{height:4px;border-radius:99px;background:var(--border);overflow:hidden}
+.progress-fill{height:100%;border-radius:99px;background:var(--accent);transition:width .15s;width:0%}
+.progress-label{font-size:.72rem;color:var(--muted);text-align:center}
+
+/* Preview pane */
+.preview-pane{flex:1;display:flex;flex-direction:column;align-items:center;overflow:auto;padding:24px 20px;gap:16px;background:#dde3ea}
+.preview-wrapper{display:flex;align-items:center;justify-content:center;flex:1;width:100%;min-height:200px}
+
+/* Paper */
+.paper{background:#fff;box-shadow:var(--paper-shadow);position:relative;flex-shrink:0}
+.paper canvas{display:block;max-width:calc(100vw - var(--sidebar) - 48px);max-height:calc(100vh - 140px)}
+.placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);padding:64px 40px;text-align:center}
+.placeholder .ico{font-size:3rem;opacity:.35}
+.placeholder p{font-size:.88rem;max-width:260px}
+
+/* Info bar */
+.info-bar{display:none;align-items:center;flex-wrap:wrap;gap:14px;background:var(--surf);border-radius:var(--radius);padding:10px 16px;font-size:.77rem;width:100%;max-width:900px;box-shadow:var(--shadow)}
+.info-bar.on{display:flex}
+.chip{display:flex;align-items:center;gap:5px;color:var(--muted)}
+.chip strong{color:var(--text)}
+.chip::before{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--border)}
+.chip:first-child::before{display:none}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;border-radius:var(--radius);padding:9px 18px;font-size:.81rem;font-weight:500;box-shadow:var(--shadow);z-index:999;display:none;max-width:380px;text-align:center}
+.toast.err{background:#dc2626}.toast.ok{background:#16a34a}
+.toast.show{display:block;animation:fadeup .22s ease}
+@keyframes fadeup{from{opacity:0;transform:translateX(-50%) translateY(8px)}}
+
+/* Spinner overlay on paper */
+.spin-overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(255,255,255,.75)}
+.spin-overlay.on{display:flex}
+.spin{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .65s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Nup<span>Imposer</span></div>
+  <div style="font-size:.73rem;color:var(--muted)">Web · Client-side</div>
+  <div class="spacer"></div>
+  <div class="hdr-ctrl">
+    <label style="margin:0">Units</label>
+    <select id="unitsSelect" style="width:auto;padding:4px 8px;font-size:.77rem">
+      <option value="in">inches</option>
+      <option value="mm">mm</option>
+      <option value="cm">cm</option>
+    </select>
+  </div>
+</header>
+
+<div class="layout">
+
+<!-- ═══════════════════════ SIDEBAR ═══════════════════════ -->
+<aside class="sidebar">
+
+  <div class="section">
+    <div class="sec-title">Image</div>
+    <div class="dropzone" id="dz">
+      <span class="dz-ico">🖼️</span>
+      <p><strong>Click to upload</strong> or drag &amp; drop<br>JPG · PNG · WebP · GIF</p>
+      <input type="file" id="fileIn" accept="image/*">
+    </div>
+    <div class="file-info" id="fileInfo">
+      <span class="fi-name" id="fiName">—</span>
+      <span class="fi-meta" id="fiMeta">—</span>
+      <button class="fi-change" id="fiChange">Change</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Canvas (Paper)</div>
+    <div class="mt">
+      <label>Paper size</label>
+      <select id="paperPre">
+        <option value="letter">Letter — 8.5 × 11 in</option>
+        <option value="legal">Legal — 8.5 × 14 in</option>
+        <option value="tabloid">Tabloid — 11 × 17 in</option>
+        <option value="a4">A4 — 210 × 297 mm</option>
+        <option value="a3">A3 — 297 × 420 mm</option>
+        <option value="a5">A5 — 148 × 210 mm</option>
+        <option value="4x6">4 × 6 in</option>
+        <option value="5x7">5 × 7 in</option>
+        <option value="8x10">8 × 10 in</option>
+        <option value="custom">Custom…</option>
+      </select>
+    </div>
+    <div class="r2 mt" id="cvCust" style="display:none">
+      <div>
+        <label>Width <span class="ubadge" id="cvWU">in</span></label>
+        <input type="number" id="cvW" min=".1" step=".1" value="8.5">
+      </div>
+      <div>
+        <label>Height <span class="ubadge" id="cvHU">in</span></label>
+        <input type="number" id="cvH" min=".1" step=".1" value="11">
+      </div>
+    </div>
+    <div class="mt">
+      <label>Orientation</label>
+      <div class="seg" id="cvOrient">
+        <button class="on" data-v="portrait">↕ Portrait</button>
+        <button data-v="landscape">↔ Landscape</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Image Cell Size</div>
+    <div class="tog-row">
+      <label class="tog"><input type="checkbox" id="autoChk" checked><span class="trk"></span></label>
+      <label for="autoChk">Auto-fit from print size</label>
+    </div>
+
+    <div id="autoPanel">
+      <div class="r2">
+        <div>
+          <label>Width <span class="ubadge" id="imWU">in</span></label>
+          <input type="number" id="imW" min=".1" step=".1" value="4">
+        </div>
+        <div>
+          <label>Height <span class="ubadge" id="imHU">in</span></label>
+          <input type="number" id="imH" min=".1" step=".1" value="6">
+        </div>
+      </div>
+      <div class="mt">
+        <label>Image orientation</label>
+        <div class="seg" id="imOrient">
+          <button class="on" data-v="auto">Auto</button>
+          <button data-v="portrait">↕ Port</button>
+          <button data-v="landscape">↔ Land</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="gridPanel" style="display:none">
+      <label style="margin-bottom:7px">Grid — hover to preview, click to select</label>
+      <div class="grid-picker" id="gridPicker"></div>
+      <div class="gp-lbl mt" id="gpLbl">Grid: <strong>2 × 2</strong></div>
+    </div>
+
+    <div class="mt">
+      <label>Fit mode</label>
+      <div class="seg" id="fitSeg">
+        <button class="on" data-v="contain">Letterbox</button>
+        <button data-v="fill">Stretch</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Spacing</div>
+    <div class="r2">
+      <div>
+        <label>Margin <span class="ubadge" id="marU">in</span></label>
+        <input type="number" id="marIn" min="0" step=".05" value=".25">
+      </div>
+      <div>
+        <label>Gutter <span class="ubadge" id="gutU">in</span></label>
+        <input type="number" id="gutIn" min="0" step=".05" value=".125">
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Export Quality</div>
+    <div class="seg" id="dpiSeg">
+      <button data-v="150">150 dpi</button>
+      <button class="on" data-v="300">300 dpi</button>
+      <button data-v="600">600 dpi</button>
+    </div>
+    <p style="font-size:.71rem;color:var(--muted);margin-top:6px;line-height:1.5">
+      Preview always renders at screen resolution. DPI only affects the downloaded PDF.
+    </p>
+  </div>
+
+  <div class="action-bar">
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-label" id="progressLbl">Generating PDF…</div>
+    </div>
+    <button class="btn btn-primary btn-full" id="exportBtn" disabled>
+      ⬇ Save PDF…
+    </button>
+    <button class="btn btn-outline btn-full" id="previewBtn" disabled>
+      ↗ Open in Tab
+    </button>
+  </div>
+
+</aside>
+
+<!-- ═══════════════════════ PREVIEW ═══════════════════════ -->
+<main class="preview-pane">
+  <div class="preview-wrapper" id="previewWrapper">
+    <div class="placeholder" id="placeholder">
+      <div class="ico">📄</div>
+      <p>Upload an image to see your n-up layout preview here.</p>
+    </div>
+    <div class="paper" id="paper" style="display:none">
+      <canvas id="previewCanvas"></canvas>
+      <div class="spin-overlay" id="spinOverlay"><div class="spin"></div></div>
+    </div>
+  </div>
+
+  <div class="info-bar" id="infoBar">
+    <div class="chip"><strong id="iCopies">—</strong> copies</div>
+    <div class="chip">Grid <strong id="iGrid">—</strong></div>
+    <div class="chip">Cell <strong id="iCell">—</strong></div>
+    <div class="chip">Canvas <strong id="iCanvas">—</strong></div>
+    <div class="chip">DPI <strong id="iDPI">300</strong></div>
+  </div>
+</main>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+const PRESETS = {
+  letter:  [215.9, 279.4], legal:   [215.9, 355.6], tabloid: [279.4, 431.8],
+  a3:      [297.0, 420.0], a4:      [210.0, 297.0], a5:      [148.0, 210.0],
+  '4x6':   [101.6, 152.4], '5x7':   [127.0, 177.8], '8x10':  [203.2, 254.0],
+};
+const MM_PER = { in: 25.4, mm: 1, cm: 10 };
+const DEC    = { in: 3, mm: 1, cm: 2 };
+const STEP   = { in: .1, mm: 1, cm: .1 };
+
+// ─── State ───────────────────────────────────────────────────────────────────
+const S = {
+  img: null,          // HTMLImageElement
+  units: 'in',
+  canvas: { preset:'letter', w:215.9, h:279.4, orient:'portrait' },  // mm
+  image:  { w:101.6, h:152.4, orient:'auto', fit:'contain' },        // mm
+  layout: { mode:'auto', rows:2, cols:2 },
+  spacing:{ margin:6.35, gutter:3.175 },  // mm
+  dpi: 300,
+  debounce: null,
+};
+
+// ─── Utils ───────────────────────────────────────────────────────────────────
+const $   = id => document.getElementById(id);
+const toMM  = v  => v * MM_PER[S.units];
+const fromMM= v  => +(v / MM_PER[S.units]).toFixed(DEC[S.units]);
+
+function resolveLayout() {
+  const { w:cw, h:ch, orient } = S.canvas;
+  const cW = orient==='landscape' ? Math.max(cw,ch) : Math.min(cw,ch);
+  const cH = orient==='landscape' ? Math.min(cw,ch) : Math.max(cw,ch);
+  const { margin, gutter } = S.spacing;
+  const usW = cW - 2*margin,  usH = cH - 2*margin;
+
+  let rows, cols, iw, ih;
+  if (S.layout.mode === 'auto') {
+    let w = S.image.w, h = S.image.h;
+    const ori = S.image.orient;
+    if (ori==='portrait')  [w,h] = [Math.min(w,h), Math.max(w,h)];
+    if (ori==='landscape') [w,h] = [Math.max(w,h), Math.min(w,h)];
+    iw = w; ih = h;
+    cols = Math.max(1, Math.floor((usW + gutter) / (iw + gutter)));
+    rows = Math.max(1, Math.floor((usH + gutter) / (ih + gutter)));
+  } else {
+    rows = Math.max(1, S.layout.rows);
+    cols = Math.max(1, S.layout.cols);
+    iw = Math.max(.1, (usW - (cols-1)*gutter) / cols);
+    ih = Math.max(.1, (usH - (rows-1)*gutter) / rows);
+  }
+  return { cW, cH, iw, ih, rows, cols };
+}
+
+function cellRects(cW, cH, iw, ih, rows, cols) {
+  const { margin, gutter } = S.spacing;
+  const out = [];
+  for (let r=0; r<rows; r++)
+    for (let c=0; c<cols; c++)
+      out.push({ x: margin + c*(iw+gutter), y: margin + r*(ih+gutter), w:iw, h:ih });
+  return out;
+}
+
+// ─── Toast ───────────────────────────────────────────────────────────────────
+let _tt;
+function toast(msg, type='') {
+  const t=$('toast'); t.textContent=msg;
+  t.className='toast show'+(type?' '+type:'');
+  clearTimeout(_tt); _tt=setTimeout(()=>t.className='toast',4000);
+}
+
+// ─── Drop / Upload ────────────────────────────────────────────────────────────
+const dz=$('dz'); const fi=$('fileIn');
+dz.addEventListener('click',()=>fi.click());
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');const f=e.dataTransfer.files[0];if(f)loadFile(f)});
+fi.addEventListener('change',()=>{if(fi.files[0])loadFile(fi.files[0])});
+$('fiChange').addEventListener('click',()=>fi.click());
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      S.img = img;
+      $('dz').style.display = 'none';
+      $('fileInfo').classList.add('on');
+      $('fiName').textContent = file.name;
+      const kb = (file.size/1024).toFixed(0);
+      $('fiMeta').textContent = `${img.width}×${img.height}px · ${kb} KB`;
+      $('exportBtn').disabled = false;
+      $('previewBtn').disabled = false;
+      schedulePreview();
+    };
+    img.onerror = () => toast('Cannot read image — try JPG or PNG.', 'err');
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ─── Units ───────────────────────────────────────────────────────────────────
+$('unitsSelect').addEventListener('change', () => {
+  S.units = $('unitsSelect').value;
+  updateBadges(); syncInputs(); schedulePreview();
+});
+function updateBadges() {
+  ['cvWU','cvHU','imWU','imHU','marU','gutU'].forEach(id=>$(id).textContent=S.units);
+  [$('cvW'),$('cvH'),$('imW'),$('imH'),$('marIn'),$('gutIn')].forEach(el=>el.step=STEP[S.units]);
+}
+function syncInputs() {
+  $('cvW').value = fromMM(S.canvas.w);  $('cvH').value = fromMM(S.canvas.h);
+  $('imW').value = fromMM(S.image.w);   $('imH').value = fromMM(S.image.h);
+  $('marIn').value = fromMM(S.spacing.margin);
+  $('gutIn').value = fromMM(S.spacing.gutter);
+}
+
+// ─── Paper preset ─────────────────────────────────────────────────────────────
+$('paperPre').addEventListener('change', () => {
+  const v=$('paperPre').value;
+  $('cvCust').style.display = v==='custom' ? '' : 'none';
+  if(v!=='custom') {
+    const [w,h]=PRESETS[v]; S.canvas.w=w; S.canvas.h=h;
+    $('cvW').value=fromMM(w); $('cvH').value=fromMM(h);
+  }
+  S.canvas.preset=v; schedulePreview();
+});
+$('cvW').addEventListener('input',()=>{S.canvas.w=toMM(+$('cvW').value||210);schedulePreview()});
+$('cvH').addEventListener('input',()=>{S.canvas.h=toMM(+$('cvH').value||297);schedulePreview()});
+
+// ─── Segmented controls ───────────────────────────────────────────────────────
+function makeSeg(el, cb) {
+  el.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{
+    el.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on'); cb(btn.dataset.v);
+  }));
+}
+makeSeg($('cvOrient'), v=>{S.canvas.orient=v;schedulePreview()});
+makeSeg($('imOrient'), v=>{S.image.orient=v;schedulePreview()});
+makeSeg($('fitSeg'),   v=>{S.image.fit=v;schedulePreview()});
+makeSeg($('dpiSeg'),   v=>{S.dpi=+v;$('iDPI').textContent=v});
+
+// ─── Auto/grid toggle ─────────────────────────────────────────────────────────
+$('autoChk').addEventListener('change', () => {
+  const auto=$('autoChk').checked;
+  S.layout.mode=auto?'auto':'grid';
+  $('autoPanel').style.display=auto?'':'none';
+  $('gridPanel').style.display=auto?'none':'';
+  schedulePreview();
+});
+$('imW').addEventListener('input',()=>{S.image.w=toMM(+$('imW').value||100);schedulePreview()});
+$('imH').addEventListener('input',()=>{S.image.h=toMM(+$('imH').value||150);schedulePreview()});
+$('marIn').addEventListener('input',()=>{S.spacing.margin=toMM(+$('marIn').value||0);schedulePreview()});
+$('gutIn').addEventListener('input',()=>{S.spacing.gutter=toMM(+$('gutIn').value||0);schedulePreview()});
+
+// ─── Grid picker ──────────────────────────────────────────────────────────────
+(function() {
+  const gp=$('gridPicker'), MAX=4;
+  const corner=document.createElement('div'); corner.className='gp-cell hdr'; gp.appendChild(corner);
+  for(let c=1;c<=MAX;c++){const d=document.createElement('div');d.className='gp-cell hdr';d.textContent=c;gp.appendChild(d)}
+  for(let r=1;r<=MAX;r++){
+    const rl=document.createElement('div');rl.className='gp-cell hdr';rl.textContent=r;gp.appendChild(rl);
+    for(let c=1;c<=MAX;c++){
+      const cell=document.createElement('div'); cell.className='gp-cell';
+      cell.dataset.r=r; cell.dataset.c=c;
+      cell.addEventListener('mouseenter',()=>hlGrid(r,c));
+      cell.addEventListener('mouseleave',()=>hlGrid(S.layout.rows,S.layout.cols));
+      cell.addEventListener('click',()=>{S.layout.rows=r;S.layout.cols=c;updateGpLabel();schedulePreview()});
+      gp.appendChild(cell);
+    }
+  }
+  hlGrid(2,2);
+})();
+function hlGrid(tr,tc){
+  $('gridPicker').querySelectorAll('.gp-cell:not(.hdr)').forEach(cell=>{
+    const r=+cell.dataset.r,c=+cell.dataset.c;
+    cell.classList.toggle('hover',r<=tr&&c<=tc&&!(r===S.layout.rows&&c===S.layout.cols));
+    cell.classList.toggle('sel',r===S.layout.rows&&c===S.layout.cols);
+  });
+}
+function updateGpLabel(){
+  $('gpLbl').innerHTML=`Grid: <strong>${S.layout.rows} × ${S.layout.cols}</strong> = ${S.layout.rows*S.layout.cols} copies`;
+  hlGrid(S.layout.rows,S.layout.cols);
+}
+updateGpLabel();
+
+// ─── Preview rendering ────────────────────────────────────────────────────────
+function schedulePreview() {
+  clearTimeout(S.debounce);
+  if(!S.img) return;
+  S.debounce = setTimeout(renderPreview, 280);
+}
+
+function renderPreview() {
+  if(!S.img) return;
+  const { cW, cH, iw, ih, rows, cols } = resolveLayout();
+  const rects = cellRects(cW, cH, iw, ih, rows, cols);
+
+  const SCREEN_DPI = 96;
+  const px = mm => Math.max(1, Math.round(mm * SCREEN_DPI / 25.4));
+
+  const cvs=$('previewCanvas');
+  cvs.width  = px(cW);
+  cvs.height = px(cH);
+  const ctx = cvs.getContext('2d');
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,cvs.width,cvs.height);
+
+  const cw_px=px(iw), ch_px=px(ih);
+  rects.forEach(({x,y})=>{
+    drawFit(ctx,S.img,px(x),px(y),cw_px,ch_px,S.image.fit);
+  });
+
+  // Show paper, hide placeholder
+  $('paper').style.display='';
+  $('placeholder').style.display='none';
+
+  updateInfo(cW, cH, iw, ih, rows, cols);
+}
+
+function drawFit(ctx, img, x, y, w, h, fit) {
+  ctx.save();
+  // white background for cell
+  ctx.fillStyle='#fff'; ctx.fillRect(x,y,w,h);
+  if(fit==='fill'){
+    ctx.drawImage(img,x,y,w,h);
+  } else {
+    const sc=Math.min(w/img.width, h/img.height);
+    const dw=img.width*sc, dh=img.height*sc;
+    ctx.drawImage(img, x+(w-dw)/2, y+(h-dh)/2, dw, dh);
+  }
+  ctx.restore();
+}
+
+function updateInfo(cW,cH,iw,ih,rows,cols) {
+  $('infoBar').classList.add('on');
+  $('iCopies').textContent = rows*cols;
+  $('iGrid').textContent   = `${rows} × ${cols}`;
+  const u=S.units;
+  const fw=fromMM(iw), fh=fromMM(ih);
+  $('iCell').textContent   = `${fw} × ${fh} ${u}`;
+  const pw=fromMM(cW), ph=fromMM(cH);
+  $('iCanvas').textContent = `${pw} × ${ph} ${u}`;
+  $('iDPI').textContent    = S.dpi;
+}
+
+// ─── PDF Export ───────────────────────────────────────────────────────────────
+$('exportBtn').addEventListener('click', () => savePDF());
+$('previewBtn').addEventListener('click', () => previewInTab());
+
+// Shared: render cell image + build jsPDF document → ArrayBuffer
+async function buildPDFBytes(onProgress) {
+  const { cW, cH, iw, ih, rows, cols } = resolveLayout();
+  const rects = cellRects(cW, cH, iw, ih, rows, cols);
+  const total = rows * cols;
+
+  const CW_px = Math.round(iw * S.dpi / 25.4);
+  const CH_px = Math.round(ih * S.dpi / 25.4);
+  const off = document.createElement('canvas');
+  off.width = CW_px; off.height = CH_px;
+  const octx = off.getContext('2d');
+  octx.fillStyle = '#ffffff'; octx.fillRect(0, 0, CW_px, CH_px);
+  drawFit(octx, S.img, 0, 0, CW_px, CH_px, S.image.fit);
+  const imgData = off.toDataURL('image/jpeg', 0.95);
+
+  onProgress(20, 'Building PDF…');
+  await new Promise(r => setTimeout(r, 0));
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({
+    orientation: cW > cH ? 'landscape' : 'portrait',
+    unit: 'mm',
+    format: [cW, cH],
+  });
+
+  const alias = 'nup_cell';
+  const CHUNK = 4;
+  for (let i = 0; i < total; i++) {
+    const { x, y, w, h } = rects[i];
+    doc.addImage(imgData, 'JPEG', x, y, w, h, alias, 'FAST');
+    if ((i + 1) % CHUNK === 0) {
+      onProgress(20 + 70 * ((i + 1) / total), `Placing image ${i + 1} / ${total}…`);
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+
+  onProgress(92, 'Finalizing…');
+  await new Promise(r => setTimeout(r, 0));
+  return { bytes: doc.output('arraybuffer'), total };
+}
+
+// Progress helpers
+function _startProgress() {
+  $('progressWrap').classList.add('on');
+  $('progressFill').style.width = '0%';
+  $('progressLbl').textContent = 'Preparing…';
+}
+function _setProgress(pct, msg) {
+  $('progressFill').style.width = pct + '%';
+  $('progressLbl').textContent = msg;
+}
+function _endProgress(delay = 2200) {
+  setTimeout(() => {
+    $('progressWrap').classList.remove('on');
+    $('progressFill').style.width = '0%';
+  }, delay);
+}
+
+// Primary button: Save PDF via native OS "Save As" dialog, fallback to download
+async function savePDF() {
+  if (!S.img) return;
+  const btns = [$('exportBtn'), $('previewBtn')];
+  btns.forEach(b => b.disabled = true);
+  _startProgress();
+  try {
+    const { bytes, total } = await buildPDFBytes((p, m) => _setProgress(p, m));
+
+    _setProgress(95, 'Opening save dialog…');
+    await new Promise(r => setTimeout(r, 0));
+
+    let saved = false;
+
+    // Try File System Access API (Chrome/Edge — gives native OS Save As dialog)
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: 'nup-output.pdf',
+          types: [{ description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(bytes);
+        await writable.close();
+        saved = true;
+      } catch (e) {
+        if (e.name === 'AbortError') {   // user pressed Cancel
+          _endProgress(0);
+          return;
+        }
+        // Any other error: fall through to download
+      }
+    }
+
+    if (!saved) {
+      // Fallback: trigger browser download (works everywhere)
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'nup-output.pdf'; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
+
+    _setProgress(100, 'Done!');
+    toast(`PDF saved — ${total} cop${total === 1 ? 'y' : 'ies'} at ${S.dpi} dpi`, 'ok');
+    _endProgress();
+  } catch (err) {
+    toast('PDF error: ' + err.message, 'err');
+    _endProgress(0);
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
+// Secondary button: render PDF and open it in a new browser tab for inspection/save
+async function previewInTab() {
+  if (!S.img) return;
+  const btns = [$('exportBtn'), $('previewBtn')];
+  btns.forEach(b => b.disabled = true);
+  _startProgress();
+  try {
+    const { bytes, total } = await buildPDFBytes((p, m) => _setProgress(p, m));
+
+    _setProgress(98, 'Opening tab…');
+    await new Promise(r => setTimeout(r, 0));
+
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (!win) {
+      toast('Pop-up blocked — allow pop-ups for this page and try again.', 'err');
+      URL.revokeObjectURL(url);
+    } else {
+      _setProgress(100, 'Done!');
+      toast(`Opened in new tab — ${total} cop${total === 1 ? 'y' : 'ies'} at ${S.dpi} dpi`, 'ok');
+      // Give the tab time to fully load the blob before releasing memory
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      _endProgress();
+    }
+  } catch (err) {
+    toast('PDF error: ' + err.message, 'err');
+    _endProgress(0);
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+updateBadges();
+updateGpLabel();
+</script>
+</body>
+</html>
