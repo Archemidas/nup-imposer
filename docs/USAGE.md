@@ -44,7 +44,34 @@ Click **Calculate Layout**. The preview shows the paper, the margin guide, the c
 grid, and a thumbnail of your image in each cell. Rotated cells are marked in the
 status bar.
 
-### 4. Export
+### 4. Color management (optional)
+
+**Skip this entire section** if you just want a 4-up sheet to send to the
+driver and let Windows handle color. The default settings preserve your
+source ICC profile end-to-end.
+
+For active color management:
+
+- **Scan installed profiles** - one click populates the Destination dropdown
+  with every ICC profile Windows knows about
+  (`C:\Windows\System32\spool\drivers\color\`).
+- **Destination** - pick a printer/paper combo (e.g.
+  "Pro9500 Glossy Photo Paper"). Or **Browse...** to a custom `.icc/.icm`.
+- **Rendering intent**:
+  - **Perceptual** - photographs, when you want a pleasing match.
+  - **Relative Colorimetric** - proofs and most fine-art workflows.
+  - **Saturation** - charts, business graphics.
+  - **Absolute Colorimetric** - paper-stock simulation, contract proofs.
+- **Black point compensation** - leave on unless your destination profile
+  documents otherwise. Matches Adobe's default behavior.
+- **Soft-proof preview** - shows in the canvas how the printed result will
+  look on screen. Toggle on once you've chosen a destination.
+- **Gamut warning** - highlights pixels the destination can't reproduce.
+
+When a destination profile is selected, exports apply the transform and embed
+the destination's ICC tag (so the file's pixel data and ICC tag agree).
+
+### 5. Export
 
 - **Resolution**: output DPI. 300 is typical for inkjet; 600 for laser/sharp text.
 - **Format**:
@@ -54,6 +81,24 @@ status bar.
 - **Embed source ICC profile**: leave on unless you have a reason to strip it.
 
 Click **Export...** and pick a base filename. The extension is added per format.
+
+## Color management CLI
+
+Same options as the GUI:
+
+```bash
+# Convert to a destination profile with relative colorimetric + BPC
+python -m nup_imposer photo.jpg -n 4 -p "Super B (13x19)" \
+    --dest-profile "C:\\Windows\\System32\\spool\\drivers\\color\\Pro9500_Glossy.icc" \
+    --intent relative
+
+# Saturation intent, no BPC
+python -m nup_imposer chart.png -n 9 -p Letter \
+    --dest-profile path/to/printer.icc \
+    --intent saturation --no-bpc
+```
+
+`--intent` accepts `perceptual`, `relative`, `saturation`, or `absolute`.
 
 ## CLI examples
 

@@ -11,7 +11,11 @@ Designed primarily for **Windows**, with both a GUI (PyQt6) and a CLI.
 - **N-up imposition** for 2, 3, 4, 6, 8, 9, 10, 12, 16, 20, 25 copies (or any custom n).
 - **Auto-fit** picks the optimal rows-x-columns grid and rotates the source if needed.
 - **Multi-format input**: JPG, PNG, TIFF, PSD, PDF.
-- **TIFF and PDF output** with embedded source ICC profile and accurate DPI metadata.
+- **TIFF and PDF output** with embedded ICC profile and accurate DPI metadata.
+- **Active ICC color management** (0.2+) via lcms2: pick a destination profile
+  (Epson, Canon, sublimation, fine art, etc.), choose a rendering intent,
+  toggle black-point compensation, and **soft-proof** on screen before you commit.
+- **System profile discovery** scans Windows / macOS / Linux color folders.
 - **Paper presets**: Letter, Legal, Tabloid (11x17), Super B (13x19), A3, A3+, A4, A5, 4x6, 5x7, 8x10, mug-wrap, custom.
 - **Margin + gutter controls** with a live preview.
 - **GUI + CLI** in one app: launch GUI for ad-hoc work, scripted CLI for batch.
@@ -67,6 +71,11 @@ python -m nup_imposer photo.jpg -n 9 -p "Super B (13x19)" --margin 0.125 --gutte
 
 # Custom paper, both formats
 python -m nup_imposer label.pdf -n 12 --paper-custom 13 19 -f both
+
+# Convert to a printer profile with perceptual intent + BPC
+python -m nup_imposer photo.jpg -n 4 -p "Super B (13x19)" \
+    --dest-profile "C:\\Windows\\System32\\spool\\drivers\\color\\Pro9500_Glossy.icc" \
+    --intent perceptual
 ```
 
 See `python -m nup_imposer --help` for all options.
@@ -90,9 +99,9 @@ nup-imposer/
 
 The full roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md). The highlights:
 
-- **0.2.x** - Active ICC color management: source-to-destination transforms,
-  paper/ink profile selection, soft-proofing preview.
-- **0.3.x** - Output-target profiles for laser, inkjet, and sublimation workflows.
+- **0.2.x** - **DONE** - Active ICC color management: source-to-destination
+  transforms, system profile discovery, soft-proofing preview.
+- **0.3.x** - Output-target presets for laser, inkjet, and sublimation workflows.
 - **0.4.x** - Multi-ink awareness: 6-color (e.g. Epson Artisan 1400) and 8/10-color
   (e.g. Canon Pixma Pro9500 Mark II) profile selection and RIP-ready prep.
 - **0.5.x** - Crop / registration marks, page numbering, batch hot-folder mode.

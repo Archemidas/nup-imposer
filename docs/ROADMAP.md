@@ -1,6 +1,6 @@
 # Roadmap
 
-## 0.1.x - foundations (current)
+## 0.1.x - foundations  [DONE]
 
 - N-up imposition engine
 - Multi-format input (JPG, PNG, TIFF, PSD, PDF)
@@ -8,19 +8,22 @@
 - PyQt6 GUI + CLI
 - Windows .exe build pipeline via GitHub Actions
 
-## 0.2.x - active color management
+## 0.2.x - active color management  [DONE in 0.2.0]
 
 - `core/color.py` wrapping PIL.ImageCms (lcms2)
+- System profile discovery (Windows / macOS / Linux)
 - Source-to-destination ICC transforms
-- Rendering intents: Perceptual, Relative Colorimetric, Saturation, Absolute
+- All four rendering intents (Perceptual / Relative / Saturation / Absolute)
 - Black point compensation toggle
-- Soft-proof preview in the GUI
+- Soft-proof preview integrated into the layout canvas
+- Gamut-check flag (overlay polish lands in 0.5.x)
+- CLI: `--dest-profile`, `--intent`, `--no-bpc`
 
 ## 0.3.x - target presets
 
 - Profile registry: printer + paper + ink combo -> ICC path
 - One-click "Print to Epson Artisan 1400 + Premium Glossy"
-- Sublimation mode (mirror, sub-paper profile, correct intent)
+- Sublimation mode (auto-mirror, sub-paper profile, correct intent)
 - User-importable profile bundles
 
 ## 0.4.x - multi-ink / RIP-ready output
@@ -28,7 +31,6 @@
 - 6-color Epson Artisan 1400 support (CMYK + Cl, Ml)
 - 8 to 10-color Canon Pixma Pro9500 Mark II support
 - Multi-channel TIFF export (DeviceN)
-- Gamut warning overlay
 - Ink coverage (TAC) estimation
 
 ## 0.5.x - production niceties
@@ -37,6 +39,7 @@
 - Color bars
 - Page numbering / file naming templates
 - Batch / hot-folder mode (drop a folder of images, get a folder of imposed sheets)
+- Proper gamut-warning overlay with color picker
 
 ## 0.6.x - polish
 

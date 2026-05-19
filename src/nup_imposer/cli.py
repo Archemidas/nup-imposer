@@ -1,12 +1,15 @@
 """Command-line interface for headless imposition."""
+from __future__ import annotations
+
 import argparse
 import sys
 from pathlib import Path
 
-from .core.paper_sizes import PAPER_SIZES, custom_paper_size, get_paper_size
-from .core.imposition import compute_layout
+from .core.color import ColorSettings, RenderingIntent
+from .core.exporters import export_pdf, export_tiff
 from .core.image_loader import load_image
-from .core.exporters import export_tiff, export_pdf
+from .core.imposition import compute_layout
+from .core.paper_sizes import PAPER_SIZES, custom_paper_size, get_paper_size
 from .version import __version__
 
 
@@ -58,6 +61,24 @@ def main() -> int:
         help="When input is PDF, render first page at this DPI (default: 300)",
     )
 
+    # Color management (phase 2)
+    color = parser.add_argument_group("color management")
+    color.add_argument(
+        "--dest-profile",
+        help="Convert to this destination ICC profile (.icc/.icm) before saving",
+    )
+    color.add_argument(
+        "--intent",
+        choices=("perceptual", "relative", "saturation", "absolute"),
+        default="perceptual",
+        help="Rendering intent for the color transform (default: perceptual)",
+    )
+    color.add_argument(
+        "--no-bpc",
+        action="store_true",
+        help="Disable black point compensation (BPC is on by default)",
+    )
+
     args = parser.parse_args()
 
     # Resolve paper
@@ -70,6 +91,17 @@ def main() -> int:
             print(f"Available: {', '.join(PAPER_SIZES.keys())}", file=sys.stderr)
             return 2
 
+    # Resolve color settings
+    settings = ColorSettings()
+    settings.intent = RenderingIntent.from_label(args.intent)
+    settings.black_point_compensation = not args.no_bpc
+    if args.dest_profile:
+        dest_path = Path(args.dest_profile)
+        if not dest_path.exists():
+            print(f"Destination ICC profile not found: {dest_path}", file=sys.stderr)
+            return 4
+        settings.dest_profile_path = dest_path
+
     # Load image
     try:
         image = load_image(args.input, pdf_render_dpi=args.pdf_render_dpi)
@@ -80,6 +112,9 @@ def main() -> int:
     print(f"Loaded {image.source_format}: {image.width_px}x{image.height_px}px "
           f"@ {image.dpi_x:.0f} DPI ({image.width_in:.2f}x{image.height_in:.2f} in)")
     print(f"Color mode: {image.mode}, ICC embedded: {'yes' if image.icc_profile else 'no'}")
+    if settings.has_destination():
+        print(f"Color transform: -> {settings.dest_profile_path.name} "
+              f"({settings.intent.label}, BPC {'on' if settings.black_point_compensation else 'off'})")
 
     # Compute layout
     orientation = None if args.orientation == "auto" else args.orientation
@@ -108,11 +143,11 @@ def main() -> int:
     fmt = args.format
     if fmt in ("tiff", "both"):
         out_tiff = out_base.with_suffix(".tif")
-        export_tiff(image, layout, out_tiff, output_dpi=args.dpi)
+        export_tiff(image, layout, out_tiff, output_dpi=args.dpi, color_settings=settings)
         print(f"Wrote TIFF: {out_tiff}")
     if fmt in ("pdf", "both"):
         out_pdf = out_base.with_suffix(".pdf")
-        export_pdf(image, layout, out_pdf, output_dpi=args.dpi)
+        export_pdf(image, layout, out_pdf, output_dpi=args.dpi, color_settings=settings)
         print(f"Wrote PDF: {out_pdf}")
 
     return 0

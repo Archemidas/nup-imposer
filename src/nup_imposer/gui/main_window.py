@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
@@ -25,6 +25,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ..core.color import (
+    ColorSettings,
+    ProfileInfo,
+    RenderingIntent,
+    list_installed_profiles,
+)
 from ..core.exporters import export_pdf, export_tiff
 from ..core.image_loader import LoadedImage, load_image
 from ..core.imposition import ImpositionLayout, compute_layout
@@ -37,10 +43,12 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(f"Nup Imposer v{__version__}")
-        self.resize(1100, 720)
+        self.resize(1180, 780)
 
         self.loaded_image: Optional[LoadedImage] = None
         self.current_layout: Optional[ImpositionLayout] = None
+        self.color_settings = ColorSettings()
+        self._installed_profiles: List[ProfileInfo] = []
 
         self._build_ui()
         self._build_menu()
@@ -59,6 +67,7 @@ class MainWindow(QMainWindow):
         controls_col.addWidget(self._build_input_group())
         controls_col.addWidget(self._build_paper_group())
         controls_col.addWidget(self._build_layout_group())
+        controls_col.addWidget(self._build_color_group())
         controls_col.addWidget(self._build_output_group())
         controls_col.addStretch(1)
 
@@ -153,6 +162,47 @@ class MainWindow(QMainWindow):
 
         return box
 
+    def _build_color_group(self) -> QGroupBox:
+        box = QGroupBox("Color Management")
+        form = QFormLayout(box)
+
+        self.dest_profile_combo = QComboBox()
+        self.dest_profile_combo.addItem("(None - preserve embedded)", None)
+        self.dest_profile_combo.addItem("Browse for ICC profile...", "__browse__")
+        self.dest_profile_combo.currentIndexChanged.connect(self._on_dest_profile_changed)
+        form.addRow("Destination:", self.dest_profile_combo)
+
+        self.scan_btn = QPushButton("Scan installed profiles")
+        self.scan_btn.clicked.connect(self._on_scan_profiles)
+        form.addRow("", self.scan_btn)
+
+        self.intent_combo = QComboBox()
+        for intent in RenderingIntent:
+            self.intent_combo.addItem(intent.label, intent)
+        self.intent_combo.currentIndexChanged.connect(self._on_intent_changed)
+        form.addRow("Rendering intent:", self.intent_combo)
+
+        self.bpc_check = QCheckBox("Black point compensation")
+        self.bpc_check.setChecked(True)
+        self.bpc_check.toggled.connect(self._on_bpc_changed)
+        form.addRow("", self.bpc_check)
+
+        self.soft_proof_check = QCheckBox("Soft-proof preview")
+        self.soft_proof_check.setToolTip(
+            "Show how the print will look on screen, simulating the destination profile."
+        )
+        self.soft_proof_check.toggled.connect(self._on_soft_proof_toggled)
+        form.addRow("", self.soft_proof_check)
+
+        self.gamut_check_box = QCheckBox("Gamut warning (out-of-gamut)")
+        self.gamut_check_box.setToolTip(
+            "Highlight pixels that cannot be reproduced by the destination profile."
+        )
+        self.gamut_check_box.toggled.connect(self._on_gamut_check_toggled)
+        form.addRow("", self.gamut_check_box)
+
+        return box
+
     def _build_output_group(self) -> QGroupBox:
         box = QGroupBox("Output")
         form = QFormLayout(box)
@@ -167,7 +217,7 @@ class MainWindow(QMainWindow):
         self.format_combo.addItems(["TIFF (Photoshop)", "PDF (Acrobat)", "Both"])
         form.addRow("Format:", self.format_combo)
 
-        self.preserve_icc = QCheckBox("Embed source ICC profile")
+        self.preserve_icc = QCheckBox("Embed ICC profile")
         self.preserve_icc.setChecked(True)
         form.addRow("", self.preserve_icc)
 
@@ -266,7 +316,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Layout failed", str(e))
             return
 
-        self.preview.set_layout(self.current_layout, self.loaded_image)
+        self.preview.set_layout(self.current_layout, self.loaded_image, self.color_settings)
         layout = self.current_layout
         self.statusBar().showMessage(
             f"{layout.rows} x {layout.cols} on {layout.paper.name} "
@@ -275,6 +325,93 @@ class MainWindow(QMainWindow):
             f"{', rotated' if layout.source_rotated else ''}"
         )
         self.export_btn.setEnabled(True)
+
+    # ------------------------------------------------------- color callbacks
+
+    def _on_scan_profiles(self) -> None:
+        """Populate the destination combo with profiles found in system dirs."""
+        self.scan_btn.setEnabled(False)
+        self.scan_btn.setText("Scanning...")
+        try:
+            self._installed_profiles = list_installed_profiles()
+        except Exception as e:
+            QMessageBox.warning(self, "Scan failed", str(e))
+            self._installed_profiles = []
+        finally:
+            self.scan_btn.setEnabled(True)
+
+        # Remember current selection
+        current = self.dest_profile_combo.currentData()
+        self.dest_profile_combo.blockSignals(True)
+        self.dest_profile_combo.clear()
+        self.dest_profile_combo.addItem("(None - preserve embedded)", None)
+        for prof in self._installed_profiles:
+            label = f"{prof.name}  [{prof.color_space}, {prof.device_class}]"
+            self.dest_profile_combo.addItem(label, str(prof.path))
+        self.dest_profile_combo.addItem("Browse for ICC profile...", "__browse__")
+        # Restore selection if possible
+        idx = self.dest_profile_combo.findData(current)
+        if idx >= 0:
+            self.dest_profile_combo.setCurrentIndex(idx)
+        self.dest_profile_combo.blockSignals(False)
+        self.scan_btn.setText(f"Rescan ({len(self._installed_profiles)} found)")
+
+    def _on_dest_profile_changed(self) -> None:
+        data = self.dest_profile_combo.currentData()
+        if data == "__browse__":
+            path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Choose destination ICC profile",
+                "",
+                "ICC profiles (*.icc *.icm);;All files (*)",
+            )
+            if not path:
+                # Revert to None
+                self.dest_profile_combo.setCurrentIndex(0)
+                return
+            # Insert as a new item just before the Browse entry
+            insert_idx = self.dest_profile_combo.count() - 1
+            self.dest_profile_combo.insertItem(insert_idx, Path(path).name, path)
+            self.dest_profile_combo.setCurrentIndex(insert_idx)
+            self.color_settings.dest_profile_path = Path(path)
+        elif data is None:
+            self.color_settings.dest_profile_path = None
+        else:
+            self.color_settings.dest_profile_path = Path(data)
+        self.color_settings.dest_profile_bytes = None
+        self._refresh_preview_color()
+
+    def _on_intent_changed(self) -> None:
+        self.color_settings.intent = self.intent_combo.currentData()
+        if self.color_settings.soft_proof_enabled:
+            self._refresh_preview_color()
+
+    def _on_bpc_changed(self, checked: bool) -> None:
+        self.color_settings.black_point_compensation = checked
+        if self.color_settings.soft_proof_enabled:
+            self._refresh_preview_color()
+
+    def _on_soft_proof_toggled(self, checked: bool) -> None:
+        self.color_settings.soft_proof_enabled = checked
+        if checked and not self.color_settings.has_destination():
+            QMessageBox.information(
+                self,
+                "Pick a destination",
+                "Soft-proof needs a destination ICC profile. Select one from the "
+                "Destination dropdown (Scan installed profiles, or Browse...).",
+            )
+        self._refresh_preview_color()
+
+    def _on_gamut_check_toggled(self, checked: bool) -> None:
+        self.color_settings.gamut_check = checked
+        if self.color_settings.soft_proof_enabled:
+            self._refresh_preview_color()
+
+    def _refresh_preview_color(self) -> None:
+        if self.current_layout and self.loaded_image:
+            self.preview.set_layout(self.current_layout, self.loaded_image, self.color_settings)
+
+    # ------------------------------------------------------------ export
 
     def _on_export(self) -> None:
         if not (self.loaded_image and self.current_layout):
@@ -309,12 +446,14 @@ class MainWindow(QMainWindow):
                 export_tiff(
                     self.loaded_image, self.current_layout,
                     out_tiff, output_dpi=dpi, preserve_icc=preserve,
+                    color_settings=self.color_settings,
                 )
             if fmt.startswith("PDF") or fmt == "Both":
                 out_pdf = out_base.with_suffix(".pdf")
                 export_pdf(
                     self.loaded_image, self.current_layout,
                     out_pdf, output_dpi=dpi, preserve_icc=preserve,
+                    color_settings=self.color_settings,
                 )
         except Exception as e:
             QMessageBox.critical(self, "Export failed", str(e))
@@ -328,7 +467,8 @@ class MainWindow(QMainWindow):
             self,
             "About Nup Imposer",
             f"<b>Nup Imposer v{__version__}</b><br>"
-            "N-up image imposition for print production.<br><br>"
+            "N-up image imposition for print production.<br>"
+            "ICC color management via lcms2.<br><br>"
             "Source: github.com/Archemidas/nup-imposer<br>"
             "MIT License",
         )

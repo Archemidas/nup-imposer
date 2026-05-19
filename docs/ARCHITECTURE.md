@@ -53,11 +53,27 @@ Format-aware loader. Each input format gets a dedicated path:
 All formats normalize to a `LoadedImage` carrying the PIL image plus original DPI,
 pixel size, color mode, ICC bytes (or None), and source path/format.
 
+### `core/color.py`  [added in 0.2.0]
+
+ICC color management wrapper around `PIL.ImageCms` (lcms2). Exposes:
+
+- `system_profile_dirs()` and `list_installed_profiles()` for discovery.
+- `read_profile_info(path)` -> `ProfileInfo(name, color_space, device_class)`.
+- `apply_transform(image, src, dst, intent, bpc)` - main source->destination.
+- `soft_proof(image, src, proof, display, ...)` - on-screen simulation.
+- `RenderingIntent` enum and `ColorSettings` dataclass shared with GUI/CLI.
+
+The module is pure-logic with no Qt dependency; all GUI integration lives in
+`gui/main_window.py`.
+
 ### `core/exporters.py`
 
 `_composite(image, layout, dpi)` builds the final canvas in pixels, pastes each
-cell with rotation if needed. `export_tiff` saves with LZW compression, DPI tags,
-and embedded ICC. `export_pdf` saves a single-page PDF sized to the paper.
+cell with rotation if needed. Optionally runs through `_maybe_apply_color_transform`
+(0.2.0+) which calls `color.apply_transform` when a destination profile is set.
+`export_tiff` saves with LZW compression, DPI tags, and embedded ICC (either
+the original embedded profile or the destination profile after a transform).
+`export_pdf` saves a single-page PDF sized to the paper.
 
 ### `gui/`
 
