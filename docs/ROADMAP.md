@@ -32,13 +32,27 @@
 - GUI Quick Preset group with workflow filter + auto-apply
 - CLI: `--preset`, `--list-presets`, `--mirror`, `--no-mirror`
 
-## 0.4.x - multi-ink / RIP-ready output
+## 0.4.x - multi-ink / RIP-ready output  [DONE in 0.4.0]
 
-- 6-color Epson Artisan 1400 channel-level output (CMYK + Cl, Ml)
-- 8 to 10-color Canon Pixma Pro9500 Mark II channel-level output
-- Multi-channel TIFF export (DeviceN)
-- Ink coverage (TAC) estimation with paper-limit warnings
-- Spot-channel / named color support
+- Ink channel registry (`core/ink_channels.py`) — 9 built-in ink sets covering
+  CMYK standard, generic laser, Epson Artisan 1400 (6-ch), Canon Pro-100 (8-ch),
+  Canon Pro9500 II (10-ch), Epson P800 (8-ch), Epson P900 (10-ch),
+  commercial CMYK SWOP, and sublimation CMYK.
+- TAC (Total Area Coverage) estimation (`core/tac.py`) — histogram-based O(N)
+  estimator returning average / 95th-pct / max / pixels_over with a summary
+  formatted for CLI or popup display.
+- Light ink channel splitting — non-overlapping threshold model mapping low-density
+  pixels to the light ink and high-density pixels to the main ink.
+- DeviceN TIFF export (`export_multichannel_tiff`) — three-strategy writer:
+  (1) `tifffile` + numpy if installed, (2) built-in pure-Python DEFLATE planar
+  TIFF using `struct` + `zlib`, (3) per-channel grayscale TIFF fallback.
+- GUI: new "Ink Set / TAC" group with ink set selector, TAC limit display,
+  "Check TAC" button, and inline color-coded result label.
+- GUI: "Multi-channel TIFF (DeviceN / RIP)" format option in the Output group.
+- CLI: `--ink-set`, `--tac-warn`, `--tac-error` flags; `--list-ink-sets`;
+  `--format multichannel` for DeviceN export.
+- Docs: `docs/MULTI_INK.md` — full API reference, CLI examples, light ink
+  derivation notes, where to get multi-ink ICC profiles.
 
 ## 0.5.x - production niceties
 

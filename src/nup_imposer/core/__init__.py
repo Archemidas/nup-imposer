@@ -12,9 +12,16 @@ from .color import (
     srgb_profile_bytes,
     system_profile_dirs,
 )
-from .exporters import export_pdf, export_tiff
+from .exporters import export_multichannel_tiff, export_pdf, export_tiff
 from .image_loader import LoadedImage, load_image
 from .imposition import ImpositionLayout, compute_layout
+from .ink_channels import (
+    BUILTIN_INK_SETS,
+    InkChannel,
+    InkSet,
+    InkSetRegistry,
+    get_default_ink_registry,
+)
 from .paper_sizes import PAPER_SIZES, PaperSize, get_paper_size
 from .presets import (
     PrinterPreset,
@@ -24,6 +31,7 @@ from .presets import (
     load_user_presets,
     resolve_profile_path,
 )
+from .tac import TACResult, channel_split, estimate_tac
 
 __all__ = [
     # Imposition
@@ -38,6 +46,7 @@ __all__ = [
     # Export
     "export_tiff",
     "export_pdf",
+    "export_multichannel_tiff",
     # Color management
     "ColorSettings",
     "ProfileInfo",
@@ -57,6 +66,16 @@ __all__ = [
     "get_default_registry",
     "load_user_presets",
     "resolve_profile_path",
+    # Ink channels (0.4.0)
+    "BUILTIN_INK_SETS",
+    "InkChannel",
+    "InkSet",
+    "InkSetRegistry",
+    "get_default_ink_registry",
+    # TAC estimation (0.4.0)
+    "TACResult",
+    "estimate_tac",
+    "channel_split",
 ]
 
 

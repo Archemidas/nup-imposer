@@ -32,11 +32,13 @@ from ..core.color import (
     RenderingIntent,
     list_installed_profiles,
 )
-from ..core.exporters import export_pdf, export_tiff
+from ..core.exporters import export_multichannel_tiff, export_pdf, export_tiff
 from ..core.image_loader import LoadedImage, load_image
 from ..core.imposition import ImpositionLayout, compute_layout
+from ..core.ink_channels import InkSet, InkSetRegistry, get_default_ink_registry
 from ..core.paper_sizes import PAPER_SIZES, custom_paper_size, get_paper_size
 from ..core.presets import PresetRegistry, get_default_registry
+from ..core.tac import estimate_tac
 from ..version import __version__
 from .preview_widget import PreviewWidget
 
@@ -61,6 +63,8 @@ class MainWindow(QMainWindow):
         self.color_settings = ColorSettings()
         self._installed_profiles: List[ProfileInfo] = []
         self.preset_registry: PresetRegistry = get_default_registry()
+        self.ink_registry: InkSetRegistry = get_default_ink_registry()
+        self.selected_ink_set: Optional[InkSet] = None
 
         self._build_ui()
         self._build_menu()
@@ -81,6 +85,7 @@ class MainWindow(QMainWindow):
         controls_col.addWidget(self._build_layout_group())
         controls_col.addWidget(self._build_preset_group())
         controls_col.addWidget(self._build_color_group())
+        controls_col.addWidget(self._build_ink_tac_group())
         controls_col.addWidget(self._build_output_group())
         controls_col.addStretch(1)
 
@@ -262,6 +267,36 @@ class MainWindow(QMainWindow):
 
         return box
 
+    def _build_ink_tac_group(self) -> QGroupBox:
+        """Ink Set / TAC group (phase 4)."""
+        box = QGroupBox("Ink Set / TAC")
+        form = QFormLayout(box)
+
+        self.ink_set_combo = QComboBox()
+        self.ink_set_combo.setMinimumWidth(280)
+        self.ink_set_combo.addItem("(None — standard TIFF export)", None)
+        for ink_set in self.ink_registry.all():
+            label = f"{ink_set.label} ({ink_set.n_channels}-ch)"
+            self.ink_set_combo.addItem(label, ink_set.id)
+        self.ink_set_combo.currentIndexChanged.connect(self._on_ink_set_changed)
+        form.addRow("Ink set:", self.ink_set_combo)
+
+        self.tac_limit_label = QLabel("—")
+        self.tac_limit_label.setStyleSheet("color: #555;")
+        form.addRow("TAC limit:", self.tac_limit_label)
+
+        self.tac_check_btn = QPushButton("Check TAC…")
+        self.tac_check_btn.setEnabled(False)
+        self.tac_check_btn.clicked.connect(self._on_check_tac)
+        form.addRow("", self.tac_check_btn)
+
+        self.tac_result_label = QLabel("")
+        self.tac_result_label.setWordWrap(True)
+        self.tac_result_label.setStyleSheet("font-size: 11px; color: #333;")
+        form.addRow("", self.tac_result_label)
+
+        return box
+
     def _build_output_group(self) -> QGroupBox:
         box = QGroupBox("Output")
         form = QFormLayout(box)
@@ -273,7 +308,10 @@ class MainWindow(QMainWindow):
         form.addRow("Resolution:", self.dpi_spin)
 
         self.format_combo = QComboBox()
-        self.format_combo.addItems(["TIFF (Photoshop)", "PDF (Acrobat)", "Both"])
+        self.format_combo.addItems([
+            "TIFF (Photoshop)", "PDF (Acrobat)", "Both",
+            "Multi-channel TIFF (DeviceN / RIP)",
+        ])
         form.addRow("Format:", self.format_combo)
 
         self.preserve_icc = QCheckBox("Embed ICC profile")
@@ -336,6 +374,9 @@ class MainWindow(QMainWindow):
             f"Mode: {img.mode}    ICC: {'yes' if img.icc_profile else 'no'}"
         )
         self.statusBar().showMessage(f"Loaded {Path(path).name}")
+        # Enable TAC check if an ink set is already selected
+        if self.selected_ink_set is not None:
+            self.tac_check_btn.setEnabled(True)
         self._on_calculate_layout()
 
     def _on_paper_changed(self, text: str) -> None:
@@ -542,6 +583,61 @@ class MainWindow(QMainWindow):
         if self.current_layout and self.loaded_image:
             self.preview.set_layout(self.current_layout, self.loaded_image, self.color_settings)
 
+    # -------------------------------------------------- ink set / TAC callbacks
+
+    def _on_ink_set_changed(self) -> None:
+        ink_id = self.ink_set_combo.currentData()
+        if ink_id is None:
+            self.selected_ink_set = None
+            self.tac_limit_label.setText("—")
+            self.tac_check_btn.setEnabled(False)
+            self.tac_result_label.setText("")
+            return
+        ink_set = self.ink_registry.find(ink_id)
+        self.selected_ink_set = ink_set
+        if ink_set is not None:
+            self.tac_limit_label.setText(
+                f"{ink_set.tac_limit:.0f}%  ({ink_set.n_channels} channels)"
+            )
+            self.tac_check_btn.setEnabled(self.loaded_image is not None)
+            self.tac_result_label.setText("")
+
+    def _on_check_tac(self) -> None:
+        if not self.loaded_image or self.selected_ink_set is None:
+            return
+        from PIL import Image as PILImage
+
+        try:
+            img = self.loaded_image.pil_image.copy()
+            # Apply color settings if a destination is set
+            if self.color_settings.has_destination():
+                from ..core.color import apply_transform, ensure_source_profile
+                src = ensure_source_profile(self.loaded_image.icc_profile, img.mode)
+                dest = self.color_settings.dest_source()
+                img = apply_transform(
+                    img, src, dest,
+                    intent=self.color_settings.intent,
+                    black_point_compensation=self.color_settings.black_point_compensation,
+                )
+            result = estimate_tac(img, tac_limit=self.selected_ink_set.tac_limit)
+        except Exception as e:
+            QMessageBox.warning(self, "TAC check failed", str(e))
+            return
+
+        # Display inline
+        color = "#a00" if result.exceeds_limit else "#080"
+        self.tac_result_label.setText(
+            f"<span style='color:{color};'>"
+            f"Avg {result.average_pct:.1f}%  &nbsp; "
+            f"P95 {result.p95_pct:.1f}%  &nbsp; "
+            f"Max {result.max_pct:.1f}%"
+            + (f"  &nbsp; <b>⚠ {result.fraction_over*100:.1f}% over limit</b>"
+               if result.exceeds_limit else "  &nbsp; ✓ OK")
+            + "</span>"
+        )
+        # Also show detail dialog
+        QMessageBox.information(self, "TAC Estimation", result.summary())
+
     # ------------------------------------------------------------ export
 
     def _on_export(self) -> None:
@@ -572,20 +668,42 @@ class MainWindow(QMainWindow):
         preserve = self.preserve_icc.isChecked()
 
         try:
-            if fmt.startswith("TIFF") or fmt == "Both":
+            if fmt.startswith("Multi-channel"):
+                ink_set = self.selected_ink_set
+                if ink_set is None:
+                    QMessageBox.warning(
+                        self, "No ink set",
+                        "Select an ink set in the Ink Set / TAC group before exporting "
+                        "multi-channel TIFF.",
+                    )
+                    return
                 out_tiff = out_base.with_suffix(".tif")
-                export_tiff(
+                _, is_single = export_multichannel_tiff(
                     self.loaded_image, self.current_layout,
-                    out_tiff, output_dpi=dpi, preserve_icc=preserve,
+                    out_tiff, ink_set=ink_set, output_dpi=dpi,
                     color_settings=self.color_settings,
                 )
-            if fmt.startswith("PDF") or fmt == "Both":
-                out_pdf = out_base.with_suffix(".pdf")
-                export_pdf(
-                    self.loaded_image, self.current_layout,
-                    out_pdf, output_dpi=dpi, preserve_icc=preserve,
-                    color_settings=self.color_settings,
-                )
+                if not is_single:
+                    QMessageBox.information(
+                        self, "Exported as separate channels",
+                        f"Multi-channel TIFF writer not available — wrote {ink_set.n_channels} "
+                        f"individual channel files to:\n{out_base.parent}",
+                    )
+            else:
+                if fmt.startswith("TIFF") or fmt == "Both":
+                    out_tiff = out_base.with_suffix(".tif")
+                    export_tiff(
+                        self.loaded_image, self.current_layout,
+                        out_tiff, output_dpi=dpi, preserve_icc=preserve,
+                        color_settings=self.color_settings,
+                    )
+                if fmt.startswith("PDF") or fmt == "Both":
+                    out_pdf = out_base.with_suffix(".pdf")
+                    export_pdf(
+                        self.loaded_image, self.current_layout,
+                        out_pdf, output_dpi=dpi, preserve_icc=preserve,
+                        color_settings=self.color_settings,
+                    )
         except Exception as e:
             QMessageBox.critical(self, "Export failed", str(e))
             return

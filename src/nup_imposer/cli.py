@@ -7,12 +7,32 @@ from pathlib import Path
 
 from .core import apply_preset_to_settings
 from .core.color import ColorSettings, RenderingIntent
-from .core.exporters import export_pdf, export_tiff
+from .core.exporters import export_multichannel_tiff, export_pdf, export_tiff
 from .core.image_loader import load_image
 from .core.imposition import compute_layout
+from .core.ink_channels import get_default_ink_registry
 from .core.paper_sizes import PAPER_SIZES, custom_paper_size, get_paper_size
 from .core.presets import get_default_registry
+from .core.tac import estimate_tac
 from .version import __version__
+
+
+def _list_ink_sets() -> int:
+    registry = get_default_ink_registry()
+    by_workflow: dict = {}
+    for s in registry.all():
+        by_workflow.setdefault(s.workflow, []).append(s)
+
+    print(f"Available ink sets ({len(registry)} total):\n")
+    for workflow in ("inkjet", "laser", "commercial", "sublimation"):
+        if workflow not in by_workflow:
+            continue
+        print(f"  [{workflow}]")
+        for s in by_workflow[workflow]:
+            ext = "  (extended)" if s.is_extended else ""
+            print(f"    {s.id:<40} {s.n_channels}-ch  TAC {s.tac_limit:.0f}%  {s.label}{ext}")
+        print()
+    return 0
 
 
 def _list_presets() -> int:
@@ -41,6 +61,8 @@ def main() -> int:
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--list-presets", action="store_true",
                         help="List all available printer presets and exit")
+    parser.add_argument("--list-ink-sets", action="store_true",
+                        help="List all available ink sets and exit")
     parser.add_argument("input", nargs="?", help="Input image (JPG/PNG/TIFF/PSD/PDF)")
     parser.add_argument(
         "-n", "--copies", type=int,
@@ -71,8 +93,9 @@ def main() -> int:
         help="Output DPI (default: 300)",
     )
     parser.add_argument(
-        "-f", "--format", choices=("tiff", "pdf", "both"), default="tiff",
-        help="Output format (default: tiff)",
+        "-f", "--format", choices=("tiff", "pdf", "both", "multichannel"), default="tiff",
+        help="Output format (default: tiff). 'multichannel' writes a DeviceN TIFF "
+             "for RIP ingestion — requires --ink-set.",
     )
     parser.add_argument(
         "-o", "--output",
@@ -117,13 +140,36 @@ def main() -> int:
         help="Force mirror off even if --preset would enable it.",
     )
 
+    # Ink sets / TAC (phase 4)
+    ink = parser.add_argument_group("ink sets / TAC (phase 4)")
+    ink.add_argument(
+        "--ink-set",
+        help="Ink set id for multi-channel TIFF export and TAC estimation "
+             "(e.g. epson_artisan_1400_6color). Use --list-ink-sets to see all options.",
+    )
+    ink.add_argument(
+        "--tac-warn", action="store_true",
+        help="Estimate TAC before export and warn (but continue) if any pixels "
+             "exceed the ink set's paper limit.",
+    )
+    ink.add_argument(
+        "--tac-error", action="store_true",
+        help="Like --tac-warn, but exit with code 6 when TAC limit is exceeded.",
+    )
+
     args = parser.parse_args()
 
     if args.list_presets:
         return _list_presets()
 
+    if args.list_ink_sets:
+        return _list_ink_sets()
+
     if not args.input or args.copies is None:
-        parser.error("input and -n/--copies are required (use --list-presets to browse presets)")
+        parser.error(
+            "input and -n/--copies are required "
+            "(use --list-presets / --list-ink-sets to browse options)"
+        )
 
     # Resolve paper
     if args.paper_custom:
@@ -173,6 +219,23 @@ def main() -> int:
     if args.no_mirror:
         settings.mirror_output = False
 
+    # Ink set resolution (phase 4)
+    resolved_ink_set = None
+    if args.ink_set or args.format == "multichannel":
+        ink_id = args.ink_set or "cmyk_standard"
+        ink_registry = get_default_ink_registry()
+        resolved_ink_set = ink_registry.find(ink_id)
+        if resolved_ink_set is None:
+            print(f"Unknown ink set: {ink_id}", file=sys.stderr)
+            print("Run with --list-ink-sets to see all options.", file=sys.stderr)
+            return 7
+
+    if args.format == "multichannel" and resolved_ink_set is None:
+        print(
+            "Error: --format multichannel requires --ink-set <id>", file=sys.stderr
+        )
+        return 7
+
     # Load image
     try:
         image = load_image(args.input, pdf_render_dpi=args.pdf_render_dpi)
@@ -215,15 +278,39 @@ def main() -> int:
             f"{in_path.stem}_{args.copies}up_{paper.name.split()[0].lower()}"
         )
 
+    # TAC check (phase 4) — run before export
+    if (args.tac_warn or args.tac_error) and resolved_ink_set is not None:
+        print(f"Estimating TAC against {resolved_ink_set.label} "
+              f"(limit {resolved_ink_set.tac_limit:.0f}%)…")
+        tac_result = estimate_tac(image.pil_image, tac_limit=resolved_ink_set.tac_limit)
+        print(tac_result.summary())
+        if tac_result.exceeds_limit and args.tac_error:
+            print("Aborting: TAC limit exceeded (use --tac-warn to continue anyway).",
+                  file=sys.stderr)
+            return 6
+
     fmt = args.format
-    if fmt in ("tiff", "both"):
+    if fmt == "multichannel":
         out_tiff = out_base.with_suffix(".tif")
-        export_tiff(image, layout, out_tiff, output_dpi=args.dpi, color_settings=settings)
-        print(f"Wrote TIFF: {out_tiff}")
-    if fmt in ("pdf", "both"):
-        out_pdf = out_base.with_suffix(".pdf")
-        export_pdf(image, layout, out_pdf, output_dpi=args.dpi, color_settings=settings)
-        print(f"Wrote PDF: {out_pdf}")
+        _, is_single = export_multichannel_tiff(
+            image, layout, out_tiff,
+            ink_set=resolved_ink_set,
+            output_dpi=args.dpi,
+            color_settings=settings,
+        )
+        if is_single:
+            print(f"Wrote DeviceN TIFF ({resolved_ink_set.n_channels}-ch): {out_tiff}")
+        else:
+            print(f"Wrote {resolved_ink_set.n_channels} channel files to: {out_tiff.parent}")
+    else:
+        if fmt in ("tiff", "both"):
+            out_tiff = out_base.with_suffix(".tif")
+            export_tiff(image, layout, out_tiff, output_dpi=args.dpi, color_settings=settings)
+            print(f"Wrote TIFF: {out_tiff}")
+        if fmt in ("pdf", "both"):
+            out_pdf = out_base.with_suffix(".pdf")
+            export_pdf(image, layout, out_pdf, output_dpi=args.dpi, color_settings=settings)
+            print(f"Wrote PDF: {out_pdf}")
 
     return 0
 
