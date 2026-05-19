@@ -41,7 +41,7 @@ jobs:
             exit 1
           }
           $size = (Get-Item "dist\NupImposer.exe").Length / 1MB
-          Write-Host "NupImposer.exe built successfully — $([math]::Round($size,1)) MB"
+          Write-Host "NupImposer.exe built successfully - $([math]::Round($size,1)) MB"
 
       - name: Package as zip
         shell: powershell
