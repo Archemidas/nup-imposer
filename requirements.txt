@@ -1,0 +1,4 @@
+Pillow>=10.0.0
+PyMuPDF>=1.24.0
+psd-tools>=1.10.0
+PyQt6>=6.6.0
