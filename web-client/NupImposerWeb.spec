@@ -9,10 +9,10 @@ Output:
     dist/NupImposerWeb.exe   (Windows)
     dist/NupImposerWeb       (macOS / Linux)
 
-The executable bundles launcher.py + nup_imposer_web.html into a single
-portable file.  On launch it starts a local HTTP server and opens the
-default browser automatically.  All PDF processing happens in the browser
-via jsPDF — no Python web framework dependencies required.
+The executable bundles launcher.py + nup_imposer_web.html.  On launch it
+starts a local HTTP server, places a system-tray icon, and opens the
+default browser automatically.  Closing via the tray "Quit" item shuts
+everything down cleanly.
 """
 
 a = Analysis(
@@ -20,13 +20,22 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[("nup_imposer_web.html", ".")],
-    hiddenimports=[],
+    hiddenimports=[
+        # pystray Windows backend
+        "pystray._win32",
+        # Pillow core (icon drawing)
+        "PIL._imaging",
+        "PIL.Image",
+        "PIL.ImageDraw",
+        "PIL.ImageFont",
+        "PIL.ImageChops",
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # Exclude large stdlib modules we don't use
-        "tkinter", "unittest", "email", "html", "http.cookiejar",
+        # Strip large stdlib modules we never use
+        "tkinter", "unittest", "email", "http.cookiejar",
         "xmlrpc", "distutils", "ensurepip", "lib2to3",
     ],
     noarchive=False,
@@ -48,7 +57,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,    # Shows a small terminal window — closing it stops the server
+    console=False,        # No terminal window — tray icon is the UI
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
